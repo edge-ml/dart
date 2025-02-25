@@ -1,8 +1,4 @@
-/// Support for doing something awesome.
-///
-/// More dartdocs go here.
-library;
+library edge_ml_dart;
 
-export 'src/edge_ml_dart_base.dart';
-
-// TODO: Export any libraries intended for clients of this package.
+export 'src/dataset_collector.dart';
+export 'src/online_dataset_collector.dart';
