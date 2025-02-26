@@ -1,122 +1,192 @@
+import 'dart:async';
+
+import 'package:edge_ml_dart/edge_ml_dart.dart';
 import 'package:flutter/material.dart';
 
+import 'mouse_tracker.dart';
+
+const String edgeMlUrl = String.fromEnvironment(
+  'EDGE_ML_URL',
+  defaultValue: 'https://app.edge-ml.org',
+);
+const String edgeMlApiKey = String.fromEnvironment(
+  'EDGE_ML_API_KEY',
+  defaultValue: '',
+);
+
 void main() {
-  runApp(const MyApp());
+  runApp(MouseDragTrackerApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MouseDragTrackerApp extends StatefulWidget {
+  const MouseDragTrackerApp({super.key});
 
-  // This widget is the root of your application.
+  @override
+  State<MouseDragTrackerApp> createState() => _MouseDragTrackerAppState();
+}
+
+class _MouseDragTrackerAppState extends State<MouseDragTrackerApp> {
+  OnlineDatasetCollector? _onlineDatasetCollector;
+
+  final TextEditingController _urlController = TextEditingController(
+    text: edgeMlUrl,
+  );
+  final TextEditingController _apiKeyController = TextEditingController(
+    text: edgeMlApiKey,
+  );
+  final TextEditingController _datasetNameController = TextEditingController(
+    text: "Mouse Movement",
+  );
+
+  bool _tracking = false;
+  bool _starting = false;
+  Timer? _timer;
+
+  double _frequency = 50;
+
+  double _cursorX = 0;
+  double _cursorY = 0;
+
+  void _onTimerTick(Timer timer) {
+    _onlineDatasetCollector?.addDataPoint(name: "mouseX", value: _cursorX);
+    _onlineDatasetCollector?.addDataPoint(name: "mouseY", value: _cursorY);
+  }
+
+  void _startTimer(int frequency) {
+    _timer = Timer.periodic(Duration(milliseconds: frequency), _onTimerTick);
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void _toggleTracking() async {
+    if (!_tracking) {
+      setState(() {
+        _starting = true;
+      });
+
+      String url = _urlController.text;
+      String apiKey = _apiKeyController.text;
+      String datasetName = _datasetNameController.text;
+      int frequency = _frequency.toInt();
+
+      try {
+        _onlineDatasetCollector = await OnlineDatasetCollector.create(
+          url: url,
+          key: apiKey,
+          name: datasetName,
+          useDeviceTime: true,
+          timeSeries: ["mouseX", "mouseY"],
+          metaData: {"app": "example"},
+          datasetLabel: "mouse",
+        );
+      } catch (e) {
+        print('Failed to create OnlineDatasetCollector: $e');
+        setState(() {
+          _starting = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _starting = false;
+        _tracking = true;
+      });
+      print('Started tracking');
+      _startTimer(frequency);
+    } else {
+      _stopTimer();
+      setState(() {
+        _tracking = false;
+      });
+      print('Stopped tracking');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      title: 'Mouse & Drag Tracker',
+      home: Scaffold(
+        appBar: AppBar(title: Text('Mouse & Drag Tracker')),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              TextField(
+                controller: _urlController,
+                decoration: InputDecoration(
+                  labelText: 'URL',
+                  border: OutlineInputBorder(),
+                ),
+                enabled: !_tracking && !_starting,
+              ),
+              SizedBox(height: 16.0),
+              TextField(
+                controller: _apiKeyController,
+                decoration: InputDecoration(
+                  labelText: 'API Key',
+                  border: OutlineInputBorder(),
+                ),
+                enabled: !_tracking && !_starting,
+              ),
+              SizedBox(height: 16.0),
+              TextField(
+                controller: _datasetNameController,
+                decoration: InputDecoration(
+                  labelText: 'Dataset Name',
+                  border: OutlineInputBorder(),
+                ),
+                enabled: !_tracking && !_starting,
+              ),
+              SizedBox(height: 16.0),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Measure Frequency: ${_frequency.toInt()} ms'),
+                  Slider(
+                    value: _frequency,
+                    min: 1,
+                    max: 1000,
+                    divisions: 999,
+                    label: _frequency.toInt().toString(),
+                    onChanged:
+                        _tracking && !_starting
+                            ? null
+                            : (value) {
+                              setState(() {
+                                _frequency = value;
+                              });
+                            },
+                  ),
+                ],
+              ),
+              SizedBox(height: 16.0),
+              ElevatedButton(
+                onPressed: _starting ? null : _toggleTracking,
+                child: Text(
+                  _tracking
+                      ? 'Stop'
+                      : _starting
+                      ? 'Starting...'
+                      : 'Start',
+                ),
+              ),
+              SizedBox(height: 16.0),
+              Expanded(
+                child: CursorTracker(
+                  onCursorUpdate: (double a, double b) {
+                    _cursorX = a;
+                    _cursorY = b;
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
