@@ -1,0 +1,21 @@
+name: Analyze and build on main push
+on:
+  push:
+    branches:
+      - main
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+jobs:
+  analyze_and_build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter analyze
+      - run: (cd example && flutter build web --dart-define=BUILD_COMMIT=$(git
+          rev-parse --short HEAD) --dart-define=BUILD_BRANCH=$(git rev-parse
+          --abbrev-ref HEAD))
