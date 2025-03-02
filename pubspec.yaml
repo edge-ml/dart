@@ -1,6 +1,7 @@
 name: edge_ml_dart
 description: A library for using Edge-ML with Dart.
 version: 0.0.2
+repository: https://github.com/edge-ml/dart/tree/main
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
