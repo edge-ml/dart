@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'csv_collector_example.dart';
 import 'online_collector_example.dart';
 
 void main() {
@@ -22,13 +23,14 @@ class MouseDragTrackerApp extends StatelessWidget {
           ),
           body: TabBarView(
             children: [
-              // Online tab: existing UI
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: OnlineCollectorExample(),
               ),
-              // CSV tab: placeholder
-              Center(child: Text('CSV functionality not implemented yet.')),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: CsvCollectorExample(),
+              ),
             ],
           ),
         ),
