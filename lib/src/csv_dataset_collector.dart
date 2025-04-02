@@ -65,6 +65,7 @@ class CsvDatasetCollector extends DatasetCollector {
       final now = DateTime.now();
       final nowString =
           '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}__${now.hour.toString().padLeft(2, '0')}_${now.minute.toString().padLeft(2, '0')}_${now.second.toString().padLeft(2, '0')}';
+
       // Replace spaces in dataset name with underscore
       final sanitizedName = name.replaceAll(RegExp(r'\s+'), '_');
       final fileName = '${nowString}__${sanitizedName}.csv';
@@ -80,43 +81,7 @@ class CsvDatasetCollector extends DatasetCollector {
     await _outputFile.writeAsString('$csvHeader\n');
   }
 
-  /// Appends a new data line to the CSV.
-  /// Each line includes [timestamp, name, value].
-  /// If [useDeviceTime] is true, we capture the current device time;
-  /// otherwise, we require an explicit [time] argument.
-  @override
-  Future<void> addDataPoint({
-    int? time,
-    required String name,
-    required num value,
-  }) async {
-    if (name.isEmpty) {
-      throw ArgumentError('Sensor name cannot be empty.');
-    }
-    if (!timeSeries.contains(name)) {
-      throw ArgumentError(
-        'Sensor name "$name" is not part of the current data set.',
-      );
-    }
-
-    if (!useDeviceTime && time == null) {
-      throw ArgumentError("Timestamp must be provided if useDeviceTime=false.");
-    }
-    final int actualTime =
-        useDeviceTime ? DateTime.now().millisecondsSinceEpoch : time!;
-
-    // Round similarly to your JS logic (two decimals)
-    final roundedValue = (value * 100).round() / 100;
-
-    // Update sensor data in the _rows map
-    if (!_rows.containsKey(actualTime)) {
-      _rows[actualTime] = {
-        'time': actualTime.toString(),
-        for (var sensor in timeSeries) sensor: '',
-      };
-    }
-    _rows[actualTime]![name] = roundedValue.toString();
-
+  Future<void> _writeCsv() async {
     // Rebuild entire CSV content with header and sorted rows
     final headerRow = ['time']..addAll(timeSeries.map((s) => 'sensor_$s'));
     List<List<String>> allRows = [];
@@ -130,6 +95,51 @@ class CsvDatasetCollector extends DatasetCollector {
     }
     final csvContent = const ListToCsvConverter().convert(allRows);
     await _outputFile.writeAsString('$csvContent\n');
+  }
+
+  void _setField(int? time, String name, String value) {
+    if (name.isEmpty) {
+      throw ArgumentError('Sensor name cannot be empty.');
+    }
+    if (!timeSeries.contains(name)) {
+      throw ArgumentError(
+        'Sensor name "$name" is not part of the current data set.',
+      );
+    }
+
+    if (!useDeviceTime && time == null) {
+      throw ArgumentError("Timestamp must be provided if useDeviceTime=false.");
+    }
+
+    final int actualTime =
+        useDeviceTime ? DateTime.now().millisecondsSinceEpoch : time!;
+
+    // Update sensor data in the _rows map
+    if (!_rows.containsKey(actualTime)) {
+      _rows[actualTime] = {
+        'time': actualTime.toString(),
+        for (var sensor in timeSeries) sensor: '',
+      };
+    }
+    _rows[actualTime]![name] = value;
+  }
+
+  /// Appends a new data line to the CSV.
+  /// Each line includes [timestamp, name, value].
+  /// If [useDeviceTime] is true, we capture the current device time;
+  /// otherwise, we require an explicit [time] argument.
+  @override
+  Future<void> addDataPoint({
+    int? time,
+    required String name,
+    required num value,
+  }) async {
+    // Round similarly to your JS logic (two decimals)
+    final roundedValue = (value * 100).round() / 100;
+
+    _setField(time, name, roundedValue.toString());
+
+    await _writeCsv();
   }
 
   static Future<List<String>> listCsvFiles() async {
