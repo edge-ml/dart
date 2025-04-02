@@ -11,6 +11,7 @@ class CsvDatasetCollector extends DatasetCollector {
   final bool useDeviceTime;
   final List<String> timeSeries;
   final Map<String, dynamic> metaData;
+  final bool allowUnsupportedString;
 
   // The file that we'll be writing data into
   late File _outputFile;
@@ -22,6 +23,7 @@ class CsvDatasetCollector extends DatasetCollector {
     required this.useDeviceTime,
     required this.timeSeries,
     required this.metaData,
+    this.allowUnsupportedString = false,
   });
 
   /// Factory constructor to create and initialize the CSV collector
@@ -31,6 +33,7 @@ class CsvDatasetCollector extends DatasetCollector {
     required bool useDeviceTime,
     required List<String> timeSeries,
     required Map<String, dynamic> metaData,
+    bool allowUnsupportedString = false,
     String? datasetLabel,
   }) async {
     final instance = CsvDatasetCollector._(
@@ -38,6 +41,7 @@ class CsvDatasetCollector extends DatasetCollector {
       useDeviceTime: useDeviceTime,
       timeSeries: timeSeries,
       metaData: metaData,
+      allowUnsupportedString: allowUnsupportedString,
     );
     await instance._initialize(filePath);
     return instance;
@@ -124,7 +128,7 @@ class CsvDatasetCollector extends DatasetCollector {
     _rows[actualTime]![name] = value;
   }
 
-  /// Appends a new data line to the CSV.
+  /// Appends a new data point to the CSV.
   /// Each line includes [timestamp, name, value].
   /// If [useDeviceTime] is true, we capture the current device time;
   /// otherwise, we require an explicit [time] argument.
@@ -138,6 +142,26 @@ class CsvDatasetCollector extends DatasetCollector {
     final roundedValue = (value * 100).round() / 100;
 
     _setField(time, name, roundedValue.toString());
+
+    await _writeCsv();
+  }
+
+  /// Appends a string new data point to the CSV.
+  /// Each line includes [timestamp, name, value].
+  /// If [useDeviceTime] is true, we capture the current device time;
+  /// otherwise, we require an explicit [time] argument.
+  /// [allowUnsupportedString] needs to be set to true to use this method.
+  /// This method creates CSV files not supported by Edge-ML.
+  Future<void> addStringDataPoint({
+    int? time,
+    required String name,
+    required String value,
+  }) async {
+    if (!allowUnsupportedString) {
+      throw ArgumentError('allowUnsupportedString needs to be set to true');
+    }
+
+    _setField(time, name, value);
 
     await _writeCsv();
   }
