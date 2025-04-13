@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:path_provider/path_provider.dart';
 import 'package:csv/csv.dart';
+import 'package:semaphore_plus/semaphore_plus.dart';
 
 import 'dataset_collector.dart';
 
@@ -17,6 +18,8 @@ class CsvDatasetCollector extends DatasetCollector {
   late File _outputFile;
 
   final Map<int, Map<String, String>> _rows = {};
+
+  final _rowsModSemaphore = LocalSemaphore(1);
 
   CsvDatasetCollector._({
     required this.name,
@@ -86,22 +89,35 @@ class CsvDatasetCollector extends DatasetCollector {
   }
 
   Future<void> _writeCsv() async {
-    // Rebuild entire CSV content with header and sorted rows
-    final headerRow = ['time']..addAll(timeSeries.map((s) => 'sensor_$s'));
     List<List<String>> allRows = [];
-    allRows.add(headerRow);
-    final sortedTimestamps = _rows.keys.toList()..sort();
-    for (final timestamp in sortedTimestamps) {
-      final rowMap = _rows[timestamp]!;
-      final row = [rowMap['time'] ?? ''] +
-          timeSeries.map((sensor) => rowMap[sensor] ?? '').toList();
-      allRows.add(row);
+
+    try {
+      await _rowsModSemaphore.acquire();
+
+      // Rebuild entire CSV content with header and sorted rows
+      final headerRow = ['time']..addAll(timeSeries.map((s) => 'sensor_$s'));
+
+      allRows.add(headerRow);
+      final sortedTimestamps = _rows.keys.toList()..sort();
+      for (final timestamp in sortedTimestamps) {
+        final rowMap = _rows[timestamp]!;
+        final row = [rowMap['time'] ?? ''] +
+            timeSeries.map((sensor) => rowMap[sensor] ?? '').toList();
+        allRows.add(row);
+      }
+    } catch (_) {
+      // Nothing
+    } finally {
+      _rowsModSemaphore.release();
     }
-    final csvContent = const ListToCsvConverter().convert(allRows);
-    await _outputFile.writeAsString('$csvContent\n');
+
+    if (allRows.isNotEmpty) {
+      final csvContent = const ListToCsvConverter().convert(allRows);
+      await _outputFile.writeAsString('$csvContent\n');
+    }
   }
 
-  void _setField(int? time, String name, String value) {
+  Future<void> _setField(int? time, String name, String value) async {
     if (name.isEmpty) {
       throw ArgumentError('Sensor name cannot be empty.');
     }
@@ -118,14 +134,22 @@ class CsvDatasetCollector extends DatasetCollector {
     final int actualTime =
         useDeviceTime ? DateTime.now().millisecondsSinceEpoch : time!;
 
-    // Update sensor data in the _rows map
-    if (!_rows.containsKey(actualTime)) {
-      _rows[actualTime] = {
-        'time': actualTime.toString(),
-        for (var sensor in timeSeries) sensor: '',
-      };
+    try {
+      await _rowsModSemaphore.acquire();
+
+      // Update sensor data in the _rows map
+      if (!_rows.containsKey(actualTime)) {
+        _rows[actualTime] = {
+          'time': actualTime.toString(),
+          for (var sensor in timeSeries) sensor: '',
+        };
+      }
+      _rows[actualTime]![name] = value;
+    } catch (_) {
+      // Nothing
+    } finally {
+      _rowsModSemaphore.release();
     }
-    _rows[actualTime]![name] = value;
   }
 
   /// Appends a new data point to the CSV.
@@ -141,7 +165,7 @@ class CsvDatasetCollector extends DatasetCollector {
     // Round similarly to your JS logic (two decimals)
     final roundedValue = (value * 100).round() / 100;
 
-    _setField(time, name, roundedValue.toString());
+    await _setField(time, name, roundedValue.toString());
 
     await _writeCsv();
   }
@@ -161,7 +185,7 @@ class CsvDatasetCollector extends DatasetCollector {
       throw ArgumentError('allowUnsupportedString needs to be set to true');
     }
 
-    _setField(time, name, value);
+    await _setField(time, name, value);
 
     await _writeCsv();
   }
