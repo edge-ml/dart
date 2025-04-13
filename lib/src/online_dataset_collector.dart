@@ -164,6 +164,11 @@ class OnlineDatasetCollector extends DatasetCollector {
       throw Exception("Upload failed with status code ${response.statusCode}.");
     }
   }
+
+  @override
+  Future<void> dispose() async {
+    await _upload();
+  }
 }
 
 class _TimeSeriesData {
