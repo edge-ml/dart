@@ -222,6 +222,13 @@ class CsvDatasetCollector extends DatasetCollector {
     }
   }
 
+  @override
+  Future<void> dispose() async {
+    _writeTimeout?.cancel();
+    _writeTimeout = null;
+    await _writeCsv();
+  }
+
   static Future<List<String>> listCsvFiles() async {
     final dir = await getApplicationDocumentsDirectory();
     final csvDir = Directory('${dir.path}/csv_datasets');
