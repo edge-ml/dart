@@ -13,6 +13,7 @@ class CsvDatasetCollector extends DatasetCollector {
   final List<String> timeSeries;
   final Map<String, dynamic> metaData;
   final bool allowUnsupportedString;
+  final int writeIntervalMs;
 
   // The file that we'll be writing data into
   late File _outputFile;
@@ -20,6 +21,8 @@ class CsvDatasetCollector extends DatasetCollector {
   final Map<int, Map<String, String>> _rows = {};
 
   final _rowsModSemaphore = LocalSemaphore(1);
+  final _setWriteInterval = LocalSemaphore(1);
+  Timer? _writeTimeout;
 
   CsvDatasetCollector._({
     required this.name,
@@ -27,6 +30,7 @@ class CsvDatasetCollector extends DatasetCollector {
     required this.timeSeries,
     required this.metaData,
     this.allowUnsupportedString = false,
+    this.writeIntervalMs = 5000,
   });
 
   /// Factory constructor to create and initialize the CSV collector
@@ -37,6 +41,7 @@ class CsvDatasetCollector extends DatasetCollector {
     required List<String> timeSeries,
     required Map<String, dynamic> metaData,
     bool allowUnsupportedString = false,
+    int writeIntervalMs = 5000,
     String? datasetLabel,
   }) async {
     final instance = CsvDatasetCollector._(
@@ -45,6 +50,7 @@ class CsvDatasetCollector extends DatasetCollector {
       timeSeries: timeSeries,
       metaData: metaData,
       allowUnsupportedString: allowUnsupportedString,
+      writeIntervalMs: writeIntervalMs,
     );
     await instance._initialize(filePath);
     return instance;
@@ -167,7 +173,7 @@ class CsvDatasetCollector extends DatasetCollector {
 
     await _setField(time, name, roundedValue.toString());
 
-    await _writeCsv();
+    await _setWriteIntervalIfNeeded();
   }
 
   /// Appends a string new data point to the CSV.
@@ -187,7 +193,33 @@ class CsvDatasetCollector extends DatasetCollector {
 
     await _setField(time, name, value);
 
-    await _writeCsv();
+    await _setWriteIntervalIfNeeded();
+  }
+
+  Future<void> _setWriteIntervalIfNeeded() async {
+    try {
+      await _setWriteInterval.acquire();
+
+      if (_writeTimeout == null) {
+        _writeTimeout =
+            Timer(Duration(milliseconds: writeIntervalMs), () async {
+          try {
+            await _setWriteInterval.acquire();
+            _writeTimeout = null;
+          } catch (_) {
+            // Nothing
+          } finally {
+            _setWriteInterval.release();
+          }
+
+          await _writeCsv();
+        });
+      }
+    } catch (_) {
+      // Nothing
+    } finally {
+      _setWriteInterval.release();
+    }
   }
 
   static Future<List<String>> listCsvFiles() async {
