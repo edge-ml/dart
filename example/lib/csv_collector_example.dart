@@ -89,6 +89,7 @@ class _CsvCollectorExampleState extends State<CsvCollectorExample> {
       _startTimer(frequency);
     } else {
       _stopTimer();
+      _csvDatasetCollector?.dispose();
       setState(() {
         _tracking = false;
       });
@@ -171,10 +172,7 @@ class CsvFileListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('CSV Files'),
-        leading: BackButton(),
-      ),
+      appBar: AppBar(title: Text('CSV Files'), leading: BackButton()),
       body: FutureBuilder<List<String>>(
         future: CsvDatasetCollector.listCsvFiles(),
         builder: (context, snapshot) {

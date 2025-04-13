@@ -94,6 +94,7 @@ class _OnlineCollectorExampleState extends State<OnlineCollectorExample> {
       _startTimer(frequency);
     } else {
       _stopTimer();
+      _onlineDatasetCollector?.dispose();
       setState(() {
         _tracking = false;
       });
