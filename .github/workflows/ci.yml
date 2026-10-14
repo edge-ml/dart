@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      # the ExecuTorch native-assets build hook needs ninja
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test example/lib
+      - run: flutter analyze
+      # includes test/executorch_runtime_test.dart: the server's .pte through the real runtime
+      - run: flutter test
+      - run: dart pub publish --dry-run
+
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - working-directory: example
+        run: |
+          flutter pub get
+          flutter analyze
+          dart run executorch_flutter:setup_web
+          flutter build web --release
+          flutter build apk --debug

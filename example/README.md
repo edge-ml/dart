@@ -1,16 +1,15 @@
-# example
+# edge_ml_dart example
 
-Example app for Edge-ML Dart lib
+Records the phone's accelerometer and gyroscope into an edge-ml dataset (tap a
+label while recording to label from that moment on), trains a model from a
+preset, and classifies live sensor data on the device.
 
-## Getting Started
+```sh
+flutter run                               # Android / iOS
 
-This project is a starting point for a Flutter application.
+dart run executorch_flutter:setup_web     # once, for the web
+flutter run -d chrome
+```
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Enter your edge-ml URL and the project's Device API write key on the first
+screen.

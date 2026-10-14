@@ -7,9 +7,18 @@ on:
 
 jobs:
   publish:
+    runs-on: ubuntu-latest
+    # the pub.dev automated-publishing settings of edge_ml_dart require this environment
+    environment: pub.dev
     permissions:
-      id-token: write # Required for authentication using OIDC
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
-    with:
-      # Specify the github actions deployment environment
-      environment: pub.dev
+      id-token: write # OIDC token for pub.dev
+    steps:
+      - uses: actions/checkout@v4
+      # sets up the pub.dev OIDC credentials
+      - uses: dart-lang/setup-dart@v1
+      # the package depends on Flutter, so it is published with the Flutter SDK
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter pub publish --force

@@ -1,19 +1,29 @@
 name: edge_ml_dart
-description: A library for using Edge-ML with Dart.
-version: 0.0.4
-repository: https://github.com/edge-ml/dart/tree/main
+description: >-
+  Flutter library for edge-ml: upload labeled sensor datasets, train models on
+  the edge-ml server from presets and run them on-device with ExecuTorch.
+version: 1.0.0
+homepage: https://edge-ml.org
+repository: https://github.com/edge-ml/dart
+issue_tracker: https://github.com/edge-ml/edge-ml/issues
+topics:
+  - machine-learning
+  - sensors
+  - executorch
+  - edge-ml
 
 environment:
-  sdk: '>=3.4.0 <4.0.0'
+  sdk: ^3.10.0
+  flutter: ">=3.38.0"
 
-# Add regular dependencies here.
 dependencies:
-  csv: ^6.0.0
+  flutter:
+    sdk: flutter
+  executorch_flutter: ^0.8.0
   http: ^1.3.0
-  open_file: ^3.5.10
   path_provider: ^2.1.5
-  semaphore_plus: ^0.3.1
 
 dev_dependencies:
-  lints: ^5.0.0
-  test: ^1.24.0
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
