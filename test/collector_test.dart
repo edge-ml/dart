@@ -61,7 +61,7 @@ void main() {
     final last = appends().last;
     expect(last['data'], isEmpty);
     expect(last['labels'], [
-      {'labelingName': 'activity', 'labelName': 'walk', 'start': 0, 'end': 5},
+      {'labelingName': 'activity', 'labelName': 'walk', 'start': 0, 'end': 4},
       {'labelingName': 'posture', 'labelName': 'standing', 'start': 2, 'end': 4},
       {'labelingName': 'activity', 'labelName': 'run', 'start': 5, 'end': 9},
     ]);

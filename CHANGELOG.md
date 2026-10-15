@@ -1,3 +1,13 @@
+## 1.0.1
+
+- Fix: switching labels while recording (`startLabel` while another label of
+  the same labeling is open) ended the previous label at the same millisecond
+  the next one started. edge-ml treats that as an overlap and rejected every
+  label after the first. The previous label now ends 1 ms earlier, and
+  `stopLabel` + `startLabel` at the same time no longer touch either.
+- `addLabel` rejects a range that overlaps another label of the same labeling
+  right away, instead of failing later on upload.
+
 ## 1.0.0
 
 A rewrite of the library around the edge-ml device API.
