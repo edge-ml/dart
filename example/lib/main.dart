@@ -343,31 +343,48 @@ class TrainPage extends StatefulWidget {
 
 class _TrainPageState extends State<TrainPage> {
   final _name = TextEditingController(text: 'my-model');
-  late final Future<(List<Labeling>, List<Preset>)> _options = (
-    widget.edgeml.datasets.labelings(),
-    widget.edgeml.models.presets(),
-  ).wait;
+  late Future<(List<Dataset>, List<Labeling>, List<Preset>)> _options = _load();
   String? _labeling;
   String _preset = Presets.mediumCnn;
+  final _excluded = <String>{}; // dataset ids unticked by the user
   String? _status;
+  double? _progress;
   bool _training = false;
 
-  Future<void> _train() async {
+  Future<(List<Dataset>, List<Labeling>, List<Preset>)> _load() =>
+      (widget.edgeml.datasets.list(), widget.edgeml.datasets.labelings(), widget.edgeml.models.presets()).wait;
+
+  Future<void> _train(List<Dataset> datasets) async {
     setState(() {
       _training = true;
       _status = 'Starting…';
+      _progress = null;
     });
     try {
       final model = await widget.edgeml.models.train(
         name: _name.text,
         labeling: _labeling!,
         preset: _preset,
-        onProgress: (m) => setState(() => _status = '${m.status.name} ${m.stage ?? ''} ${m.progress ?? ''}'),
+        datasets: [for (final d in datasets) d.id],
+        onProgress: (m) => setState(() {
+          _status = '${m.status.name}${m.stage != null ? ': ${m.stage}' : ''}';
+          _progress = m.progress == null ? null : m.progress! / 100;
+        }),
         onWarning: (w) => _showError(context, w),
       );
-      setState(() => _status = 'Done: ${model.name} predicts ${model.labels.join(', ')}');
+      final accuracy = model.metrics?['accuracy_score'];
+      setState(() {
+        _status =
+            'Done: ${model.name} predicts ${model.labels.join(', ')}'
+            '${accuracy is num ? ' (accuracy ${(accuracy * 100).toStringAsFixed(0)}%)' : ''}. '
+            'Open the Predict tab to run it.';
+        _progress = 1;
+      });
     } catch (e) {
-      setState(() => _status = null);
+      setState(() {
+        _status = null;
+        _progress = null;
+      });
       if (mounted) _showError(context, e);
     } finally {
       if (mounted) setState(() => _training = false);
@@ -375,39 +392,91 @@ class _TrainPageState extends State<TrainPage> {
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder(
-    future: _options,
-    builder: (context, snapshot) {
-      if (snapshot.hasError) return Center(child: Text('${snapshot.error}'));
-      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-      final (labelings, presets) = snapshot.data!;
-      if (labelings.isEmpty) return const Center(child: Text('Record a labeled dataset first.'));
-      _labeling ??= labelings.first.name;
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: _name,
-            decoration: const InputDecoration(labelText: 'Model name'),
-          ),
-          DropdownButtonFormField(
-            initialValue: _labeling,
-            decoration: const InputDecoration(labelText: 'Labeling'),
-            items: [for (final l in labelings) DropdownMenuItem(value: l.name, child: Text(l.name))],
-            onChanged: (v) => setState(() => _labeling = v),
-          ),
-          DropdownButtonFormField(
-            initialValue: _preset,
-            decoration: const InputDecoration(labelText: 'Preset'),
-            items: [for (final p in presets) DropdownMenuItem(value: p.id, child: Text(p.name))],
-            onChanged: (v) => setState(() => _preset = v!),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: _training ? null : _train, child: const Text('Train')),
-          if (_status != null) Padding(padding: const EdgeInsets.only(top: 16), child: Text(_status!)),
-        ],
-      );
+  Widget build(BuildContext context) => RefreshIndicator(
+    onRefresh: () async {
+      setState(() => _options = _load());
+      await _options;
     },
+    child: FutureBuilder(
+      future: _options,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return ListView(padding: const EdgeInsets.all(16), children: [Text('${snapshot.error}')]);
+        }
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final (datasets, labelings, presets) = snapshot.data!;
+        // only labelings that actually label some data
+        final used = labelings.where((l) => datasets.any((d) => d.labels.any((x) => x.labeling == l.name))).toList();
+        if (used.isEmpty) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: const [Text('No labeled datasets yet. Record one with labels first, then pull to refresh.')],
+          );
+        }
+        if (_labeling == null || !used.any((l) => l.name == _labeling)) _labeling = used.first.name;
+        final labeling = used.firstWhere((l) => l.name == _labeling);
+        final candidates = datasets.where((d) => d.labels.any((x) => x.labeling == labeling.name)).toList();
+        final selected = candidates.where((d) => !_excluded.contains(d.id)).toList();
+        final preset = presets.where((p) => p.id == _preset).firstOrNull;
+        final text = Theme.of(context).textTheme;
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(labelText: 'Model name'),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _labeling,
+              decoration: const InputDecoration(labelText: 'What to learn (labeling)'),
+              items: [for (final l in used) DropdownMenuItem(value: l.name, child: Text(l.name))],
+              onChanged: _training ? null : (v) => setState(() => _labeling = v),
+            ),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: -8, children: [for (final c in labeling.labels) Chip(label: Text(c.name))]),
+            const SizedBox(height: 12),
+            Text('Datasets (${selected.length} of ${candidates.length})', style: text.titleSmall),
+            for (final d in candidates)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: !_excluded.contains(d.id),
+                onChanged: _training
+                    ? null
+                    : (v) => setState(() => v == true ? _excluded.remove(d.id) : _excluded.add(d.id)),
+                title: Text(d.name),
+                subtitle: Text(
+                  '${d.labels.where((x) => x.labeling == labeling.name).map((x) => x.label).toSet().join(', ')}'
+                  ' · ${d.timeSeries.length} sensors',
+                ),
+              ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _preset,
+              decoration: const InputDecoration(labelText: 'Preset'),
+              items: [for (final p in presets) DropdownMenuItem(value: p.id, child: Text(p.name))],
+              onChanged: _training ? null : (v) => setState(() => _preset = v!),
+            ),
+            if (preset != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(preset.description, style: text.bodySmall),
+              ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _training || selected.isEmpty ? null : () => _train(selected),
+              child: Text(_training ? 'Training…' : 'Train'),
+            ),
+            if (_training || _status != null) ...[
+              const SizedBox(height: 16),
+              if (_training) LinearProgressIndicator(value: _progress),
+              if (_status != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_status!)),
+            ],
+          ],
+        );
+      },
+    ),
   );
 }
 

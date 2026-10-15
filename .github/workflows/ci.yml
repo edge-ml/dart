@@ -43,6 +43,7 @@ jobs:
         run: |
           flutter pub get
           flutter analyze
+          flutter test
           dart run executorch_flutter:setup_web
           flutter build web --release
           flutter build apk --debug
