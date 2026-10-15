@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "format": "executorch",
+  "model_name": "test_model",
+  "model_id": "000000000000000000000000",
+  "executorch": {
+    "version": "1.0.0",
+    "backend": "xnnpack"
+  },
+  "sampling_rate": 25.0,
+  "window": {
+    "size": 20,
+    "stride": 10,
+    "unit": "samples"
+  },
+  "input": {
+    "name": "raw_window",
+    "shape": [
+      1,
+      20,
+      3
+    ],
+    "dtype": "float32",
+    "layout": "window x channel",
+    "timeseries": [
+      "x",
+      "y",
+      "z"
+    ]
+  },
+  "preprocessing": {
+    "baked": [
+      "ZNormalizer"
+    ],
+    "on_device": [
+      "windowing"
+    ]
+  },
+  "output": {
+    "type": "logits",
+    "shape": [
+      1,
+      2
+    ],
+    "labels": [
+      "class_0",
+      "class_1"
+    ]
+  },
+  "classification_frequency_hint_hz": 2.5
+}
