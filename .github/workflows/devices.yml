@@ -74,18 +74,15 @@ jobs:
         with:
           channel: stable
           cache: true
-      - uses: browser-actions/setup-chrome@v1
-        id: chrome
-        with:
-          install-chromedriver: true
+      # the runner image ships Chrome with a matching ChromeDriver ($CHROMEWEBDRIVER);
+      # installing another Chrome makes flutter drive pair mismatched versions
       - working-directory: example
         run: |
           flutter pub get
           dart run executorch_flutter:setup_web
-          "$CHROMEDRIVER" --port=4444 &
+          google-chrome --version
+          "$CHROMEWEBDRIVER/chromedriver" --version
+          "$CHROMEWEBDRIVER/chromedriver" --port=4444 &
           flutter drive --driver=test_driver/integration_test.dart \
             --target=integration_test/device_test.dart \
             -d web-server --browser-name=chrome
-        env:
-          CHROME_EXECUTABLE: ${{ steps.chrome.outputs.chrome-path }}
-          CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
