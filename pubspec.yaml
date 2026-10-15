@@ -2,7 +2,7 @@ name: edge_ml_dart
 description: >-
   Flutter library for edge-ml: upload labeled sensor datasets, train models on
   the edge-ml server from presets and run them on-device with ExecuTorch.
-version: 1.0.0
+version: 1.0.1
 homepage: https://edge-ml.org
 repository: https://github.com/edge-ml/dart
 issue_tracker: https://github.com/edge-ml/edge-ml/issues

@@ -27,7 +27,8 @@ void main() {
     final rec = DatasetRecording(name, metadata: {'source': 'edge_ml_dart live test'});
     for (final (i, label) in [(0, 'wave'), (1, 'still')]) {
       final t0 = start + i * 20000;
-      rec.addLabel(DatasetLabel(labeling, label, start: t0, end: t0 + 19980));
+      // back-to-back labels, the way an app switches them while recording
+      rec.startLabel(labeling, label, timestamp: t0);
       for (var s = 0; s < 1000; s++) {
         final t = t0 + s * 20;
         rec.addSample({
@@ -50,6 +51,7 @@ void main() {
       final ds = await edgeml.datasets.get(names[0]);
       expect(ds.timeSeries.map((t) => t.name), ['x', 'y', 'z']);
       expect(ds.labels.map((l) => l.label), ['wave', 'still']);
+      expect(ds.labels[1].start, ds.labels[0].end + 1); // adjacent, not overlapping
 
       expect((await edgeml.models.presets()).map((p) => p.id), contains(Presets.smallCnn));
       final model = await edgeml.models.train(
