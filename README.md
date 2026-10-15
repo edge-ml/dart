@@ -28,6 +28,14 @@ inference uses [`executorch_flutter`](https://pub.dev/packages/executorch_flutte
 which downloads its prebuilt native library at build time (desktop builds need
 `ninja` on the PATH).
 
+**Android**: release builds need the internet permission in
+`android/app/src/main/AndroidManifest.xml` (Flutter only adds it to debug
+builds):
+
+```xml
+<uses-permission android:name="android.permission.INTERNET"/>
+```
+
 **Web**: run once in your app and add the script to `web/index.html`:
 
 ```sh

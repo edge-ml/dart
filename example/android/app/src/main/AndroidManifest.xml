@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- talks to the edge-ml server; Flutter only adds this to debug builds -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="edge_ml_example"
+        android:label="edge-ml example"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
