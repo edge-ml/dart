@@ -44,26 +44,41 @@ jobs:
           working-directory: example
           script: flutter test integration_test/device_test.dart -d emulator-5554
 
+  # Pinned to the setup of the last passing run (2026-10-15) instead of
+  # macos-latest / the newest stable Flutter / whichever iPhone is listed
+  # first, so a runner image or SDK update can't silently change the run.
   ios:
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      SIMULATOR: iPhone 17 Pro
+      SIMULATOR_OS: iOS 26.5
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.7
           cache: true
       - run: brew install ninja
       - name: Boot an iPhone simulator
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for r,ds in d.items() if 'iOS' in r for x in ds if x['name'].startswith('iPhone')))")
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, os, sys
+          d = json.load(sys.stdin)['devices']
+          want = os.environ['SIMULATOR_OS'].replace(' ', '-').replace('.', '-')
+          print(next(x['udid'] for r, ds in d.items() if r.endswith(want) for x in ds if x['name'] == os.environ['SIMULATOR']))
+          ")
           echo "UDID=$UDID" >> "$GITHUB_ENV"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
       - working-directory: example
-        run: |
-          flutter pub get
-          flutter test integration_test/device_test.dart -d "$UDID"
+        run: flutter pub get
+      # fail a hang after 25 min instead of using up the whole job
+      - working-directory: example
+        timeout-minutes: 25
+        run: flutter test integration_test/device_test.dart -d "$UDID"
 
   chrome:
     runs-on: ubuntu-latest
