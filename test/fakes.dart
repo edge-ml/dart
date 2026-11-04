@@ -90,6 +90,7 @@ String manifestJson({
   List<String> labels = const ['a', 'b'],
   String type = 'probabilities',
   String? format = 'executorch',
+  List<Object?>? units,
 }) => jsonEncode({
   'schema_version': 1,
   'format': ?format,
@@ -102,6 +103,7 @@ String manifestJson({
     'name': 'raw_window',
     'shape': [1, size, sensors.length],
     'timeseries': sensors,
+    'units': ?units,
   },
   'output': {
     'type': type,
@@ -111,12 +113,21 @@ String manifestJson({
   'classification_frequency_hint_hz': 25.0,
 });
 
-Future<(Predictor, FakeRuntime)> stubPredictor(List<String> sensors, int size, {String type = 'probabilities'}) async {
+Future<(Predictor, FakeRuntime)> stubPredictor(
+  List<String> sensors,
+  int size, {
+  String type = 'probabilities',
+  List<Object?>? inputUnits,
+  Map<String, String> units = const {},
+  UnitCatalog? catalog,
+}) async {
   final runtime = FakeRuntime();
   final predictor = await Predictor.fromBytes(
     Uint8List(4),
-    manifestJson(sensors: sensors, size: size, type: type),
+    manifestJson(sensors: sensors, size: size, type: type, units: inputUnits),
     runtime: runtime,
+    units: units,
+    catalog: catalog,
   );
   return (predictor, runtime);
 }

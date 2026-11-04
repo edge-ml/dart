@@ -42,3 +42,10 @@ class PredictorNotReadyException extends EdgeMLException {
   /// Creates a [PredictorNotReadyException].
   const PredictorNotReadyException(super.message);
 }
+
+/// A sensor unit was declared that the model cannot convert from, e.g. `degC`
+/// for an acceleration input. Thrown instead of predicting on wrong values.
+class UnitException extends EdgeMLException {
+  /// Creates a [UnitException].
+  const UnitException(super.message);
+}

@@ -5,6 +5,7 @@ import '../http/api_client.dart';
 import '../inference/model_cache.dart';
 import '../inference/predictor.dart';
 import '../inference/runtime.dart';
+import '../units.dart';
 import 'types.dart';
 
 /// Model functions of an [EdgeML] client: `edgeml.models`.
@@ -146,14 +147,24 @@ class ModelsApi {
   /// Loads a trained model for on-device inference: downloads it on first
   /// use and caches it on the device (in memory on the web), so later loads
   /// work offline. [forceDownload] skips the cache.
-  Future<Predictor> load(String modelId, {bool forceDownload = false}) async {
+  ///
+  /// [units] declares the unit each sensor delivers, e.g.
+  /// `{'accX': 'm/s^2'}`; values are converted to the units the model expects
+  /// (see [Predictor.setUnits]). Throws [UnitException] if the model cannot
+  /// convert from a declared unit.
+  Future<Predictor> load(
+    String modelId, {
+    bool forceDownload = false,
+    Map<String, String> units = const {},
+    UnitCatalog? catalog,
+  }) async {
     final cacheKey = '${Uri.parse(_api.backendUrl).host}_$modelId';
     var files = forceDownload ? null : await _cache.read(cacheKey);
     if (files == null) {
       files = await download(modelId);
       await _cache.write(cacheKey, files);
     }
-    return Predictor.fromBytes(files.pte, files.manifestJson, runtime: _runtime);
+    return Predictor.fromBytes(files.pte, files.manifestJson, runtime: _runtime, units: units, catalog: catalog);
   }
 
   /// Removes downloaded models from the device cache: one, or all if

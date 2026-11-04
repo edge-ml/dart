@@ -17,3 +17,4 @@ export 'src/inference/predictor.dart' show Prediction, Predictor;
 export 'src/inference/runtime.dart' show ExecuTorchRuntime, InferenceRuntime, LoadedModel;
 export 'src/models/models_api.dart' show ModelsApi;
 export 'src/models/types.dart' show ModelInfo, Preset, Presets, StepOverride, TrainStatus, TrainingStarted;
+export 'src/units.dart' show CatalogUnit, InputUnit, UnitCatalog, UnitConversion, UnitQuantity, resolveUnitConversions;

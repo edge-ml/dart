@@ -1,3 +1,5 @@
+import '../units.dart';
+
 /// Ids of the training presets the edge-ml server offers (see
 /// [ModelsApi.presets] for the current list and descriptions). Every preset
 /// trains a model that runs on the device.
@@ -96,6 +98,7 @@ class ModelInfo {
     this.preset,
     this.labels = const [],
     this.timeSeries = const [],
+    this.inputUnits = const [],
     this.samplingRate,
     this.metrics,
   });
@@ -112,6 +115,7 @@ class ModelInfo {
     preset: json['preset'] as String?,
     labels: (json['labels'] as List? ?? const []).cast<String>(),
     timeSeries: (json['timeSeries'] as List? ?? const []).cast<String>(),
+    inputUnits: _inputUnits(json),
     samplingRate: (json['samplingRate'] as num?)?.toDouble(),
     metrics: (json['metrics'] as Map?)?.cast<String, dynamic>(),
   );
@@ -146,6 +150,11 @@ class ModelInfo {
   /// The time-series (sensors) the model expects, in input order.
   final List<String> timeSeries;
 
+  /// The unit the model expects for each of [timeSeries], in the same order.
+  /// Inputs are unknown ([InputUnit.isKnown] false) for models trained
+  /// before units existed, or on data of unknown unit.
+  final List<InputUnit> inputUnits;
+
   /// Sampling rate of the training data in Hz.
   final double? samplingRate;
 
@@ -172,4 +181,14 @@ class TrainingStarted {
 
   /// Non-fatal warnings from the server, e.g. about few training windows.
   final List<String> warnings;
+}
+
+/// `inputUnits` of a model summary, one per time-series; older servers send none.
+List<InputUnit> _inputUnits(Map<String, dynamic> json) {
+  final names = (json['timeSeries'] as List? ?? const []).cast<String>();
+  final byName = {
+    for (final u in (json['inputUnits'] as List? ?? const []).cast<Map<String, dynamic>>())
+      u['name'] as String: InputUnit.fromJson(u),
+  };
+  return [for (final n in names) byName[n] ?? InputUnit.unknown(n)];
 }

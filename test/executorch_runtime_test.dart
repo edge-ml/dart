@@ -48,4 +48,33 @@ void main() {
     final direct = await predictor.predictWindow(window);
     expect(buffered.scores, direct.scores);
   });
+
+  test('converts declared units before running the model', () async {
+    const g = 9.80665;
+    final manifest = jsonDecode(File('$dir/manifest.json').readAsStringSync()) as Map<String, dynamic>;
+    (manifest['input'] as Map<String, dynamic>)['units'] = [
+      {
+        'name': 'x',
+        'quantity': 'acceleration',
+        'unit': 'm/s^2',
+        'conversions': {
+          'g': {'scale': g, 'offset': 0.0},
+        },
+      },
+    ];
+    final converting = await Predictor.fromBytes(
+      File('$dir/model.pte').readAsBytesSync(),
+      jsonEncode(manifest),
+      units: {'x': 'g'},
+    );
+    addTearDown(converting.dispose);
+    final window = [for (final row in windows[0]) (row as List).cast<num>()];
+    final inG = [
+      for (final [x, y, z] in window) [x / g, y, z],
+    ];
+    final p = await converting.predictWindow(inG);
+    for (var j = 0; j < p.scores.length; j++) {
+      expect(p.scores[j], closeTo((logits[0][j] as num).toDouble(), 1e-3));
+    }
+  });
 }

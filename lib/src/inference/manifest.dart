@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../errors.dart';
+import '../units.dart';
 
 /// The `manifest.json` that comes with an ExecuTorch model: what the model
 /// expects as input and what its outputs mean.
@@ -14,6 +15,7 @@ class ModelManifest {
     required this.timeSeries,
     required this.labels,
     required this.outputType,
+    this.inputUnits = const [],
     this.samplingRate,
     this.classificationFrequencyHz,
     this.executorchVersion,
@@ -54,6 +56,7 @@ class ModelManifest {
         timeSeries: (input['timeseries'] as List).cast<String>(),
         labels: (output['labels'] as List).cast<String>(),
         outputType: output['type'] as String? ?? 'logits',
+        inputUnits: InputUnit.listFromManifestInput(input),
         samplingRate: (json['sampling_rate'] as num?)?.toDouble(),
         classificationFrequencyHz: (json['classification_frequency_hint_hz'] as num?)?.toDouble(),
         executorchVersion: (json['executorch'] as Map?)?['version'] as String?,
@@ -78,6 +81,10 @@ class ModelManifest {
 
   /// The time-series (sensors) the model expects, in input order.
   final List<String> timeSeries;
+
+  /// The unit the model expects for each of [timeSeries], in the same order.
+  /// Every input is unknown for models trained before units existed.
+  final List<InputUnit> inputUnits;
 
   /// Class label of each model output.
   final List<String> labels;

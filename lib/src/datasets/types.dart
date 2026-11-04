@@ -85,6 +85,7 @@ class TimeSeriesInfo {
     required this.id,
     required this.name,
     this.unit = '',
+    this.quantity,
     this.start,
     this.end,
     this.length,
@@ -94,10 +95,12 @@ class TimeSeriesInfo {
   /// Parses a time-series entry of a dataset document.
   factory TimeSeriesInfo.fromJson(Map<String, dynamic> json) {
     final rate = json['samplingRate'];
+    final quantity = json['quantity'] as String?;
     return TimeSeriesInfo(
       id: '${json['_id']}',
       name: json['name'] as String,
       unit: json['unit'] as String? ?? '',
+      quantity: quantity == null || quantity.isEmpty ? null : quantity,
       start: _validTime(json['start']),
       end: _validTime(json['end']),
       length: (json['length'] as num?)?.toInt(),
@@ -113,6 +116,11 @@ class TimeSeriesInfo {
 
   /// Unit, e.g. "m/s^2" (empty if unknown).
   final String unit;
+
+  /// Physical quantity: a quantity id of the unit catalog (e.g.
+  /// "acceleration", see [EdgeML.unitCatalog]), a custom label, or `null`
+  /// when unknown (e.g. datasets recorded before units existed).
+  final String? quantity;
 
   /// First timestamp (unix ms), `null` while the series is empty.
   final int? start;

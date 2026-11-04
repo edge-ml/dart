@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../errors.dart';
+import '../units.dart';
 import 'manifest.dart';
 import 'runtime.dart';
 import 'sample_buffer.dart';
@@ -50,22 +51,43 @@ class Prediction {
 /// normalization are part of the model; the predictor only buffers raw values
 /// into windows, aligned the same way as for training.
 ///
+/// Declare the unit each sensor delivers with `units` (or [setUnits]) and the
+/// values are converted to the units the model expects ([inputUnits]) before
+/// predicting.
+///
 /// ```dart
-/// final predictor = await edgeml.models.load(modelId);
+/// final predictor = await edgeml.models.load(modelId, units: {'accX': 'm/s^2', 'accY': 'm/s^2', 'accZ': 'm/s^2'});
 /// sensorStream.listen((e) async {
 ///   predictor.addSample({'accX': e.x, 'accY': e.y, 'accZ': e.z});
 ///   if (predictor.isReady) print((await predictor.predict()).label);
 /// });
 /// ```
 class Predictor {
-  Predictor._(this.manifest, this._model) : _buffer = SampleBuffer(manifest.timeSeries, manifest.windowSize);
+  Predictor._(this.manifest, this.inputUnits, this._conversions, this._model)
+    : _buffer = SampleBuffer(manifest.timeSeries, manifest.windowSize);
 
   /// Loads a model from its `.pte` program and `manifest.json` text, e.g. an
   /// export downloaded from the edge-ml web app and bundled as app assets.
-  static Future<Predictor> fromBytes(Uint8List pte, String manifestJson, {InferenceRuntime? runtime}) async {
+  ///
+  /// [units] declares the unit each sensor delivers (see [setUnits]); with a
+  /// [catalog], unit labels and aliases such as `°F` are accepted too.
+  static Future<Predictor> fromBytes(
+    Uint8List pte,
+    String manifestJson, {
+    InferenceRuntime? runtime,
+    Map<String, String> units = const {},
+    UnitCatalog? catalog,
+  }) async {
     final manifest = ModelManifest.parse(manifestJson);
+    final inputUnits = List<InputUnit>.unmodifiable(
+      manifest.inputUnits.length == manifest.timeSeries.length
+          ? manifest.inputUnits
+          : [for (final n in manifest.timeSeries) InputUnit.unknown(n)],
+    );
+    // check the units before loading the model, so a mistake fails fast
+    final conversions = resolveUnitConversions(inputUnits, units, catalog: catalog);
     final model = await (runtime ?? ExecuTorchRuntime()).load(pte);
-    return Predictor._(manifest, model);
+    return Predictor._(manifest, inputUnits, conversions, model);
   }
 
   /// What the model expects and predicts.
@@ -73,7 +95,26 @@ class Predictor {
 
   final LoadedModel _model;
   final SampleBuffer _buffer;
+  List<UnitConversion?> _conversions;
   bool _disposed = false;
+
+  /// The unit the model expects for each of [timeSeries], with the
+  /// conversions from other units of the same quantity. Inputs of models
+  /// trained before units existed are unknown ([InputUnit.isKnown] false).
+  final List<InputUnit> inputUnits;
+
+  /// Declares the unit each sensor delivers, by time-series name, e.g.
+  /// `{'accX': 'g', 'temp': 'degF'}`, replacing earlier declarations. Values
+  /// are then converted to the units the model expects before predicting.
+  ///
+  /// Sensors left out, sensors the model does not use, and inputs of unknown
+  /// unit pass through unchanged. Throws [UnitException] if the model cannot
+  /// convert from a declared unit. Units are matched by catalog id
+  /// (`m/s^2`, `degF`); with a [catalog] ([EdgeML.unitCatalog]), labels and
+  /// aliases like `m/s²` or `°F` are accepted too.
+  void setUnits(Map<String, String> units, {UnitCatalog? catalog}) {
+    _conversions = resolveUnitConversions(inputUnits, units, catalog: catalog);
+  }
 
   /// The sensors the model expects, in input order.
   List<String> get timeSeries => manifest.timeSeries;
@@ -125,7 +166,7 @@ class Predictor {
   }
 
   /// Classifies one window: [windowSize] rows of one value per sensor, in
-  /// [timeSeries] order.
+  /// [timeSeries] order and in the declared units (see [setUnits]).
   Future<Prediction> predictWindow(List<List<num>> window) async {
     _checkNotDisposed();
     final n = timeSeries.length;
@@ -135,7 +176,8 @@ class Predictor {
     final input = Float32List(windowSize * n);
     for (var r = 0; r < windowSize; r++) {
       for (var c = 0; c < n; c++) {
-        input[r * n + c] = window[r][c].toDouble();
+        final conversion = _conversions[c];
+        input[r * n + c] = conversion == null ? window[r][c].toDouble() : conversion.apply(window[r][c]);
       }
     }
     final output = await _model.run(input, [1, windowSize, n]);

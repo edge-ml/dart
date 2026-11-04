@@ -20,7 +20,7 @@ listing, downloading and running models also work with the read key.
 
 ```yaml
 dependencies:
-  edge_ml_dart: ^1.0.0
+  edge_ml_dart: ^1.1.0
 ```
 
 Requirements: Flutter 3.38+, Android API 23+, iOS 13+, macOS 11+. On-device
@@ -56,7 +56,12 @@ import 'package:edge_ml_dart/edge_ml_dart.dart';
 final edgeml = EdgeML(apiKey: '<device api write key>');
 
 // 1. record a labeled dataset
-final collector = await edgeml.datasets.collector('walk-1', ['accX', 'accY', 'accZ']);
+final collector = await edgeml.datasets.collector(
+  'walk-1',
+  ['accX', 'accY', 'accZ'],
+  units: {'accX': 'm/s^2', 'accY': 'm/s^2', 'accZ': 'm/s^2'}, // optional, see Units
+  quantities: {'accX': 'acceleration', 'accY': 'acceleration', 'accZ': 'acceleration'},
+);
 collector.startLabel('activity', 'walk');
 collector.addSample({'accX': 0.1, 'accY': 9.8, 'accZ': 0.3}); // for every reading
 collector.startLabel('activity', 'run'); // ends 'walk'
@@ -72,7 +77,7 @@ final model = await edgeml.models.train(
 );
 
 // 3. run it on the device
-final predictor = await edgeml.models.load(model.id);
+final predictor = await edgeml.models.load(model.id, units: {'accX': 'm/s^2', 'accY': 'm/s^2', 'accZ': 'm/s^2'});
 sensorStream.listen((e) async {
   predictor.addSample({'accX': e.x, 'accY': e.y, 'accZ': e.z});
   if (predictor.isReady) {
@@ -100,7 +105,7 @@ final edgeml = EdgeML(apiKey: key, backendUrl: 'https://edge-ml.my-lab.org');
 ```dart
 final datasets = await edgeml.datasets.list();
 for (final ds in datasets) {
-  print('${ds.name}: ${ds.timeSeries.map((t) => t.name)}');
+  print('${ds.name}: ${ds.timeSeries.map((t) => '${t.name} [${t.unit}, ${t.quantity}]')}');
   for (final label in ds.labels) {
     print('  ${label.labeling}/${label.label} ${label.start}-${label.end}');
   }
@@ -120,6 +125,8 @@ final collector = await edgeml.datasets.collector(
   'session-3',
   ['accX', 'accY', 'accZ'],
   metadata: {'device': 'phone', 'person': 'p1'},
+  units: {'accX': 'g', 'accY': 'g', 'accZ': 'g'},              // optional
+  quantities: {'accX': 'acceleration', 'accY': 'acceleration', 'accZ': 'acceleration'},
   wholeDatasetLabel: ('person', 'p1'), // optional: one label over the whole dataset
 );
 
@@ -143,7 +150,11 @@ connection. Upload it, or export it as an edge-ml CSV file that the edge-ml web
 app imports.
 
 ```dart
-final rec = DatasetRecording('offline-1', units: {'accX': 'm/s^2'});
+final rec = DatasetRecording(
+  'offline-1',
+  units: {'accX': 'm/s^2'},
+  quantities: {'accX': 'acceleration'}, // sent by upload(); the CSV only has the unit
+);
 rec.startLabel('activity', 'walk');
 rec.addSample({'accX': 0.1, 'accY': 9.8});
 rec.stopLabel('activity');
@@ -229,12 +240,56 @@ them with:
 final predictor = await Predictor.fromBytes(pteBytes, manifestJson);
 ```
 
+### Sensor units
+
+Every model knows the unit it expects for each input. Declare the unit your
+sensors deliver, and the predictor converts the values before predicting:
+
+```dart
+final predictor = await edgeml.models.load(modelId, units: {'accX': 'g', 'temp': 'degF'});
+predictor.addSample({'accX': 0.02, 'temp': 71.6}); // in g and °F
+
+for (final u in predictor.inputUnits) {
+  print('${u.name}: ${u.unit} (${u.quantity})'); // accX: m/s^2 (acceleration)
+}
+predictor.setUnits({'accX': 'm/s^2'}); // change the declaration later
+```
+
+- Sensors you don't declare pass through unchanged, and so do all inputs of
+  models trained before units existed (or on data of unknown unit).
+- If the model can't convert from a declared unit (e.g. `degC` for an
+  acceleration), `load`/`setUnits` throw a `UnitException` listing the units
+  it accepts, instead of predicting on wrong values.
+- Units are matched by catalog id (`m/s^2`, `rad/s`, `degF`, ...). Pass
+  `catalog: await edgeml.unitCatalog()` to also accept labels and aliases such
+  as `m/s²` or `°F`.
+- `ModelInfo.inputUnits` (from `models.get`/`list`) shows the same before
+  downloading a model.
+
+## Units
+
+edge-ml stores a quantity and a unit for each time-series. The quantity is an
+id of the server's unit catalog (e.g. `acceleration`, `angular_velocity`,
+`temperature`) or a name of your own, the unit one of its units (e.g. `g`,
+`rad/s`, `degF`). Training converts series of catalog quantities to the
+quantity's default unit (e.g. m/s² for acceleration), so datasets recorded in
+different units can be trained on together. Series without a quantity are
+trained on as they are.
+
+```dart
+final catalog = await edgeml.unitCatalog(); // works without a valid key
+for (final q in catalog.quantities) {
+  print('${q.id}: models expect ${q.defaultUnit}, units ${q.units.map((u) => u.id)}');
+}
+```
+
 ## Errors
 
 All errors are `EdgeMLException`s with the server's explanation in `message`:
 `AuthenticationException` (unknown key, or a read key used to write),
-`NotFoundException`, `TrainingException` (training failed or timed out) and
-`PredictorNotReadyException` (`predict()` before a full window).
+`NotFoundException`, `TrainingException` (training failed or timed out),
+`PredictorNotReadyException` (`predict()` before a full window) and
+`UnitException` (a declared sensor unit the model can't convert from).
 
 ## Migrating from 0.0.x
 

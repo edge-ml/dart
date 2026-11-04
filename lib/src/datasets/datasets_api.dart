@@ -50,7 +50,20 @@ class DatasetsApi {
     final data = recording.timeSeries;
     if (data.isEmpty) throw ArgumentError.value(recording, 'recording', 'has no values');
     final labels = recording.finishedLabels();
-    final id = await _init(recording.name, data.keys.toList(), recording.metadata);
+    final id = await _init(
+      recording.name,
+      data.keys.toList(),
+      recording.metadata,
+      // series declared but never recorded are not part of the dataset
+      units: {
+        for (final e in recording.units.entries)
+          if (data.containsKey(e.key)) e.key: e.value,
+      },
+      quantities: {
+        for (final e in recording.quantities.entries)
+          if (data.containsKey(e.key)) e.key: e.value,
+      },
+    );
 
     var chunk = <String, List<(int, double)>>{};
     var size = 0;
@@ -76,6 +89,11 @@ class DatasetsApi {
   /// [DatasetCollector] that uploads values while you record. Call
   /// [DatasetCollector.complete] when done. Needs the write key.
   ///
+  /// [units] and [quantities] store the unit and quantity of time-series,
+  /// e.g. `units: {'accX': 'm/s^2'}, quantities: {'accX': 'acceleration'}`
+  /// (quantity ids: [EdgeML.unitCatalog]). Series left out are stored
+  /// without a unit, as before.
+  ///
   /// [wholeDatasetLabel] labels the entire dataset, e.g. `('activity', 'walk')`.
   /// Use [DatasetCollector.startLabel]/[DatasetCollector.stopLabel] to label
   /// parts of it.
@@ -83,12 +101,14 @@ class DatasetsApi {
     String name,
     List<String> timeSeries, {
     Map<String, String> metadata = const {},
+    Map<String, String> units = const {},
+    Map<String, String> quantities = const {},
     (String labeling, String label)? wholeDatasetLabel,
     Duration uploadInterval = const Duration(seconds: 5),
     int maxBufferedValues = 5000,
   }) async {
     if (timeSeries.isEmpty) throw ArgumentError.value(timeSeries, 'timeSeries', 'must not be empty');
-    final id = await _init(name, timeSeries, metadata);
+    final id = await _init(name, timeSeries, metadata, units: units, quantities: quantities);
     return DatasetCollector.internal(
       datasetId: id,
       timeSeries: List.unmodifiable(timeSeries),
@@ -100,11 +120,30 @@ class DatasetsApi {
     );
   }
 
-  Future<String> _init(String name, List<String> timeSeries, Map<String, String> metadata) async {
+  Future<String> _init(
+    String name,
+    List<String> timeSeries,
+    Map<String, String> metadata, {
+    Map<String, String> units = const {},
+    Map<String, String> quantities = const {},
+  }) async {
     if (name.isEmpty) throw ArgumentError.value(name, 'name', 'must not be empty');
+    for (final series in {...units.keys, ...quantities.keys}) {
+      if (!timeSeries.contains(series)) {
+        throw ArgumentError.value(series, 'units/quantities', 'is not one of the time-series ${timeSeries.join(', ')}');
+      }
+    }
     final res = await _api.postJson('/ds/api/dataset/init/${_api.key}', {
       'name': name,
-      'timeSeries': timeSeries,
+      // plain names unless a unit or quantity is given, so servers without
+      // unit support keep accepting them
+      'timeSeries': [
+        for (final series in timeSeries)
+          if ((units[series] ?? '').isEmpty && (quantities[series] ?? '').isEmpty)
+            series
+          else
+            {'name': series, 'unit': units[series] ?? '', 'quantity': _nonEmpty(quantities[series])},
+      ],
       'metaData': metadata,
     });
     final id = res is Map ? res['id'] : null;
@@ -142,3 +181,5 @@ class DatasetsApi {
     for (final l in (project['labelings'] as List? ?? const []).cast<Map<String, dynamic>>()) Labeling.fromJson(l),
   ];
 }
+
+String? _nonEmpty(String? s) => s == null || s.isEmpty ? null : s;
