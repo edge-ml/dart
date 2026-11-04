@@ -9,7 +9,11 @@ import 'types.dart';
 /// to the server while recording, use [DatasetsApi.collector] instead.
 ///
 /// ```dart
-/// final rec = DatasetRecording('walk-1');
+/// final rec = DatasetRecording(
+///   'walk-1',
+///   units: {'accX': 'm/s^2', 'accY': 'm/s^2'},
+///   quantities: {'accX': 'acceleration', 'accY': 'acceleration'},
+/// );
 /// rec.startLabel('activity', 'walk');
 /// rec.addSample({'accX': 0.1, 'accY': 9.8});
 /// rec.stopLabel('activity');
@@ -17,9 +21,14 @@ import 'types.dart';
 /// ```
 class DatasetRecording with LabelTracker {
   /// Creates an empty recording named [name].
-  DatasetRecording(this.name, {Map<String, String> metadata = const {}, Map<String, String> units = const {}})
-    : metadata = Map.of(metadata),
-      units = Map.of(units);
+  DatasetRecording(
+    this.name, {
+    Map<String, String> metadata = const {},
+    Map<String, String> units = const {},
+    Map<String, String> quantities = const {},
+  }) : metadata = Map.of(metadata),
+       units = Map.of(units),
+       quantities = Map.of(quantities);
 
   /// Name of the dataset.
   final String name;
@@ -27,8 +36,16 @@ class DatasetRecording with LabelTracker {
   /// Metadata key/value pairs stored with the dataset.
   final Map<String, String> metadata;
 
-  /// Optional unit per time-series name, e.g. `{'accX': 'm/s^2'}` (CSV only).
+  /// Optional unit per time-series name, e.g. `{'accX': 'm/s^2'}`. Sent
+  /// with [DatasetsApi.upload] and written to the [toCsv] header.
   final Map<String, String> units;
+
+  /// Optional quantity per time-series name, e.g. `{'accX': 'acceleration'}`:
+  /// a quantity id of the unit catalog ([EdgeML.unitCatalog]) or a label of
+  /// your own. Training converts series of catalog quantities to the
+  /// quantity's default unit; series without a quantity are used as they are.
+  /// Sent with [DatasetsApi.upload] (the CSV format has no quantity).
+  final Map<String, String> quantities;
 
   final Map<String, List<(int, double)>> _series = {};
 

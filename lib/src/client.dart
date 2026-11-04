@@ -5,6 +5,7 @@ import 'http/api_client.dart';
 import 'inference/model_cache.dart';
 import 'inference/runtime.dart';
 import 'models/models_api.dart';
+import 'units.dart';
 
 /// Client for one edge-ml project, authenticated with the project's device
 /// API key (edge-ml web app → project settings → Device API).
@@ -51,6 +52,12 @@ class EdgeML {
 
   /// Train, list, download and run models.
   late final ModelsApi models;
+
+  /// The server's catalog of quantities and units: the ids to use for
+  /// `units`/`quantities` when recording, and the unit models expect for
+  /// each quantity ([UnitQuantity.defaultUnit]). Needs no API key.
+  Future<UnitCatalog> unitCatalog() async =>
+      UnitCatalog.fromJson((await _api.getJson('/ml/units/') as Map).cast<String, dynamic>());
 
   /// The edge-ml server this client talks to.
   String get backendUrl => _api.backendUrl;

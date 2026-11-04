@@ -1,3 +1,23 @@
+## 1.1.0
+
+Units (needs an edge-ml server with unit support; plain names keep working
+with older servers).
+
+- `datasets.collector` and `DatasetRecording` take `units` and `quantities`
+  per time-series and send them when the dataset is created. Series without
+  them are sent as plain names, as before.
+- `TimeSeriesInfo.quantity` next to `unit`.
+- `ModelInfo.inputUnits` and `ModelManifest.inputUnits`: the unit the model
+  expects for each input, read from `input.units` (same format in ONNX and
+  ExecuTorch manifests).
+- `Predictor` converts declared sensor units to the expected units before
+  predicting: `models.load(id, units: {...})`, `Predictor.fromBytes(...,
+  units: ...)`, `setUnits`, `inputUnits`. A unit the model can't convert from
+  throws `UnitException`. Models trained before units existed get values
+  unchanged.
+- `EdgeML.unitCatalog()` fetches the server's unit catalog (`/ml/units/`).
+- Example app stores and declares its sensor units (m/s², rad/s).
+
 ## 1.0.1
 
 - Fix: switching labels while recording (`startLabel` while another label of

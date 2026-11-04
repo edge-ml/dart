@@ -142,6 +142,28 @@ void _showError(BuildContext context, Object e) {
 
 const sensors = ['accX', 'accY', 'accZ', 'gyroX', 'gyroY', 'gyroZ'];
 
+/// The units sensors_plus delivers: acceleration in m/s², rotation in rad/s.
+/// Stored with every recording, and declared to the predictor, which converts
+/// them to the units a model expects.
+const sensorUnits = {
+  'accX': 'm/s^2',
+  'accY': 'm/s^2',
+  'accZ': 'm/s^2',
+  'gyroX': 'rad/s',
+  'gyroY': 'rad/s',
+  'gyroZ': 'rad/s',
+};
+
+/// The quantity (unit catalog id) of each sensor.
+const sensorQuantities = {
+  'accX': 'acceleration',
+  'accY': 'acceleration',
+  'accZ': 'acceleration',
+  'gyroX': 'angular_velocity',
+  'gyroY': 'angular_velocity',
+  'gyroZ': 'angular_velocity',
+};
+
 /// Accelerometer events joined with the latest gyroscope values, ~50 Hz.
 Stream<Map<String, double>> motionSamples() {
   const period = SensorInterval.gameInterval;
@@ -232,7 +254,12 @@ class _RecordPageState extends State<RecordPage> {
 
   Future<void> _start() async {
     try {
-      final collector = await widget.edgeml.datasets.collector(_name.text, sensors);
+      final collector = await widget.edgeml.datasets.collector(
+        _name.text,
+        sensors,
+        units: sensorUnits,
+        quantities: sensorQuantities,
+      );
       setState(() {
         _collector = collector;
         _samples = 0;
@@ -502,7 +529,7 @@ class _PredictPageState extends State<PredictPage> {
     await _stop();
     setState(() => _loading = true);
     try {
-      final predictor = await widget.edgeml.models.load(model.id);
+      final predictor = await widget.edgeml.models.load(model.id, units: sensorUnits);
       _sub = motionSamples().listen(predictor.addSample);
       // classify as often as the training windows overlapped
       final hz = predictor.manifest.classificationFrequencyHz ?? 2;
