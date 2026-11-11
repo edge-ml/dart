@@ -46,13 +46,28 @@ class ApiClient {
     ),
   );
 
+  /// Sends [file] with the form [fields] as multipart/form-data. Uploads of
+  /// recordings take far longer than a JSON call, hence their own [timeout].
+  Future<dynamic> postMultipart(
+    String path,
+    Map<String, String> fields,
+    http.MultipartFile file, {
+    required Duration timeout,
+  }) async {
+    final request = http.MultipartRequest('POST', uri(path))
+      ..fields.addAll(fields)
+      ..files.add(file);
+    return _decode(await _send(() async => http.Response.fromStream(await _client.send(request)), timeout: timeout));
+  }
+
   Future<Uint8List> getBytes(String path) async => (await _send(() => _client.get(uri(path)))).bodyBytes;
 
   void close() {
     if (_ownsClient) _client.close();
   }
 
-  Future<http.Response> _send(Future<http.Response> Function() request) async {
+  Future<http.Response> _send(Future<http.Response> Function() request, {Duration? timeout}) async {
+    timeout ??= this.timeout;
     final http.Response res;
     try {
       res = await request().timeout(timeout);

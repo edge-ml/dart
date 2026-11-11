@@ -20,7 +20,7 @@ listing, downloading and running models also work with the read key.
 
 ```yaml
 dependencies:
-  edge_ml_dart: ^1.1.0
+  edge_ml_dart: ^1.2.0
 ```
 
 Requirements: Flutter 3.38+, Android API 23+, iOS 13+, macOS 11+. On-device
@@ -162,6 +162,42 @@ rec.stopLabel('activity');
 final datasetId = await edgeml.datasets.upload(rec);
 final csv = rec.toCsv(); // time,sensor_accX[m/s^2],sensor_accY,label_activity_walk
 ```
+
+### Audio and video
+
+A dataset can hold audio and video recordings next to its time-series, to
+view and label them in the edge-ml web app. They are not used for training.
+The library uploads files; recording them (camera, microphone) is up to your
+app, with whatever plugin it uses.
+
+```dart
+// add a recording to a dataset, e.g. the one a collector just filled
+final media = await edgeml.datasets.uploadMediaFile(
+  collector.datasetId,
+  '/path/to/walk-1.mp4',
+  start: recordingStartedAt.millisecondsSinceEpoch, // lines it up with the sensor data
+  name: 'front camera',                             // optional: defaults to the file name
+);
+print('${media.kind.name} ${media.duration} ${media.width}x${media.height}');
+
+// from memory (also works on the web)
+await edgeml.datasets.uploadMediaBytes(datasetId, bytes, fileName: 'voice.m4a');
+
+// a dataset that only holds recordings
+final id = await edgeml.datasets.create('interview-1');
+await edgeml.datasets.uploadMediaFile(id, path);
+
+// recordings are listed with the dataset and can be downloaded
+final ds = await edgeml.datasets.get(id);
+final bytes = await edgeml.datasets.downloadMedia(ds.id, ds.media.first.id);
+```
+
+`start` is the unix ms at which the recording begins. Without it the server
+uses the start of the dataset. The server keeps the file as it is and accepts
+what browsers can play: MP4 (H.264 with AAC) and WebM video; MP3, WAV, OGG,
+FLAC and M4A audio, up to 2 GB. Anything else throws an `EdgeMLException`
+(status 400) that says why. Phone cameras record MP4/H.264 by default; on
+iOS, pick "Most Compatible" rather than HEVC.
 
 ## Training
 

@@ -4,13 +4,15 @@
 //
 // Uploads two labeled datasets (one recorded in m/s^2, one in g), trains the
 // small_cnn preset on them, then downloads the model and runs it with the real
-// ExecuTorch runtime, feeding values in g.
+// ExecuTorch runtime, feeding values in g. A second test adds a recording
+// (a generated WAV file) to a dataset; it needs a server with media support.
 @TestOn('vm')
 @Tags(['live'])
 library;
 
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:edge_ml_dart/edge_ml_dart.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,6 +51,96 @@ void main() {
     }
     return rec;
   }
+
+  /// A mono 16-bit WAV file with a 440 Hz tone.
+  Uint8List wav(Duration length, {int sampleRate = 8000}) {
+    final samples = sampleRate * length.inMilliseconds ~/ 1000;
+    final data = ByteData(44 + samples * 2);
+    void tag(int offset, String s) {
+      for (final (i, c) in s.codeUnits.indexed) {
+        data.setUint8(offset + i, c);
+      }
+    }
+
+    tag(0, 'RIFF');
+    data.setUint32(4, 36 + samples * 2, Endian.little);
+    tag(8, 'WAVEfmt ');
+    data.setUint32(16, 16, Endian.little);
+    data.setUint16(20, 1, Endian.little); // PCM
+    data.setUint16(22, 1, Endian.little); // mono
+    data.setUint32(24, sampleRate, Endian.little);
+    data.setUint32(28, sampleRate * 2, Endian.little);
+    data.setUint16(32, 2, Endian.little);
+    data.setUint16(34, 16, Endian.little);
+    tag(36, 'data');
+    data.setUint32(40, samples * 2, Endian.little);
+    for (var i = 0; i < samples; i++) {
+      data.setInt16(44 + i * 2, (12000 * sin(2 * pi * 440 * i / sampleRate)).round(), Endian.little);
+    }
+    return data.buffer.asUint8List();
+  }
+
+  test(
+    'audio recordings: upload, list, download',
+    () async {
+      final edgeml = EdgeML(apiKey: key!, backendUrl: url!, modelCache: MemoryModelCache());
+      addTearDown(edgeml.close);
+      final start = run - 60000;
+      final sound = wav(const Duration(seconds: 3));
+
+      // next to sensor data, from memory
+      final rec = DatasetRecording('dart-live-$run-media', metadata: {'source': 'edge_ml_dart live test'});
+      for (var s = 0; s < 100; s++) {
+        rec.addSample({'x': sin(s / 5)}, timestamp: start + s * 20);
+      }
+      final withData = await edgeml.datasets.upload(rec);
+      final fromBytes = await edgeml.datasets.uploadMediaBytes(
+        withData,
+        sound,
+        fileName: 'tone.wav',
+        name: 'microphone',
+        start: start + 1000,
+        kind: MediaKind.audio,
+      );
+      expect(fromBytes.kind, MediaKind.audio);
+      expect(fromBytes.name, 'microphone');
+      expect(fromBytes.start, start + 1000);
+      expect(fromBytes.duration.inMilliseconds, closeTo(3000, 50));
+      expect(fromBytes.mimeType, 'audio/wav');
+      expect((fromBytes.sampleRate, fromBytes.channels), (8000, 1));
+
+      // in a dataset of its own, from a file; the server picks name and start
+      final dir = Directory.systemTemp.createTempSync('edgeml_live');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}/interview.wav')..writeAsBytesSync(sound);
+      final mediaOnly = await edgeml.datasets.create('dart-live-$run-media-only');
+      final fromFile = await edgeml.datasets.uploadMediaFile(mediaOnly, file.path);
+      expect(fromFile.name, 'interview');
+
+      final listed = await edgeml.datasets.get(withData);
+      expect(listed.media.map((m) => m.id), [fromBytes.id]);
+      expect(listed.start, start);
+      expect(listed.end, start + 1000 + fromBytes.duration.inMilliseconds);
+      final only = await edgeml.datasets.get(mediaOnly);
+      expect(only.timeSeries, isEmpty);
+      expect(only.media.single.id, fromFile.id);
+      expect(only.start, fromFile.start);
+
+      expect(await edgeml.datasets.downloadMedia(withData, fromBytes.id), sound);
+
+      // the server looks at the content, not at the file name
+      await expectLater(
+        edgeml.datasets.uploadMediaBytes(withData, Uint8List.fromList('not a recording'.codeUnits), fileName: 'x.wav'),
+        throwsA(isA<EdgeMLException>().having((e) => e.statusCode, 'statusCode', 400)),
+      );
+      await expectLater(
+        edgeml.datasets.uploadMediaBytes(withData, sound, kind: MediaKind.video),
+        throwsA(isA<EdgeMLException>().having((e) => e.message, 'message', contains('audio, not video'))),
+      );
+    },
+    skip: skip,
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
 
   test(
     'upload, list, train, load and predict',

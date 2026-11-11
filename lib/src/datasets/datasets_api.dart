@@ -1,4 +1,7 @@
 import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:http/http.dart' as http;
 
 import '../errors.dart';
 import '../http/api_client.dart';
@@ -83,6 +86,94 @@ class DatasetsApi {
     }
     await _append(id, chunk, labels: labels, wholeDatasetLabel: wholeDatasetLabel);
     return id;
+  }
+
+  /// Creates an empty dataset and returns its id, e.g. for a dataset that
+  /// only holds recordings ([uploadMediaFile], [uploadMediaBytes]). Needs the
+  /// write key.
+  ///
+  /// For sensor data use [collector] or [upload], which create the dataset
+  /// themselves.
+  Future<String> create(String name, {Map<String, String> metadata = const {}}) => _init(name, const [], metadata);
+
+  /// Adds the audio or video file at [path] to the dataset [datasetId] and
+  /// returns the stored recording. Needs the write key. Not available on the
+  /// web, where there are no file paths: use [uploadMediaBytes].
+  ///
+  /// [start] is the moment the recording begins (unix ms). It places the
+  /// recording on the dataset's timeline, next to the time-series; without
+  /// it the server uses the start of the dataset, or the time of the upload
+  /// for a dataset without data.
+  ///
+  /// [name] defaults to the file name. [kind] is detected from the file; if
+  /// given, a file of the other kind is refused.
+  ///
+  /// The server keeps the file as it is and accepts what browsers can play:
+  /// MP4 (H.264 with AAC) and WebM video; MP3, WAV, OGG, FLAC and M4A audio.
+  /// Anything else throws an [EdgeMLException] that says why. Uploads get
+  /// [timeout] instead of the client's request timeout.
+  ///
+  /// The library uploads files; recording them (camera, microphone) is up
+  /// to the app.
+  Future<MediaSeries> uploadMediaFile(
+    String datasetId,
+    String path, {
+    int? start,
+    String? name,
+    MediaKind? kind,
+    Duration timeout = defaultMediaUploadTimeout,
+  }) async => _uploadMedia(datasetId, await http.MultipartFile.fromPath('file', path), start, name, kind, timeout);
+
+  /// Like [uploadMediaFile], for a recording held in memory as [bytes].
+  /// [fileName] names the recording unless [name] is given.
+  Future<MediaSeries> uploadMediaBytes(
+    String datasetId,
+    Uint8List bytes, {
+    String fileName = 'recording',
+    int? start,
+    String? name,
+    MediaKind? kind,
+    Duration timeout = defaultMediaUploadTimeout,
+  }) => _uploadMedia(
+    datasetId,
+    http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+    start,
+    name,
+    kind,
+    timeout,
+  );
+
+  /// Downloads the recording [mediaId] (a [MediaSeries.id]) of a dataset as
+  /// it was uploaded. Works with the read or the write key.
+  Future<Uint8List> downloadMedia(String datasetId, String mediaId) => _api.getBytes(
+    '/ds/api/dataset/media/${_api.key}/${Uri.encodeComponent(datasetId)}/${Uri.encodeComponent(mediaId)}',
+  );
+
+  /// How long [uploadMediaFile] and [uploadMediaBytes] wait by default.
+  static const defaultMediaUploadTimeout = Duration(minutes: 30);
+
+  Future<MediaSeries> _uploadMedia(
+    String datasetId,
+    http.MultipartFile file,
+    int? start,
+    String? name,
+    MediaKind? kind,
+    Duration timeout,
+  ) async {
+    if (datasetId.isEmpty) throw ArgumentError.value(datasetId, 'datasetId', 'must not be empty');
+    if (file.length == 0) throw ArgumentError('The recording is empty');
+    final res = await _api.postMultipart(
+      '/ds/api/dataset/media/${_api.key}/${Uri.encodeComponent(datasetId)}',
+      {
+        if (start != null) 'start': '$start',
+        if (name != null && name.isNotEmpty) 'name': name,
+        if (kind != null) 'kind': kind.name,
+      },
+      file,
+      timeout: timeout,
+    );
+    if (res is! Map) throw const EdgeMLException('The server did not return the recording');
+    return MediaSeries.fromJson(res.cast<String, dynamic>());
   }
 
   /// Creates the dataset [name] with the given [timeSeries] and returns a
