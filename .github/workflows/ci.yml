@@ -16,6 +16,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # 3.50 deprecates package:flutter/material.dart, which the example
+          # app imports, and analyze treats that as an error; same pin as the
+          # iOS device job
+          flutter-version: 3.47.7
           cache: true
       # the ExecuTorch native-assets build hook needs ninja
       - run: sudo apt-get update && sudo apt-get install -y ninja-build
@@ -33,6 +37,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # 3.50 deprecates package:flutter/material.dart, which the example
+          # app imports, and analyze treats that as an error; same pin as the
+          # iOS device job
+          flutter-version: 3.47.7
           cache: true
       - uses: actions/setup-java@v4
         with:

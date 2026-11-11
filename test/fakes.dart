@@ -35,7 +35,13 @@ class FakeServer {
       req.method,
       req.url.path,
       req.url.queryParameters,
-      req.body.isEmpty ? null : jsonDecode(req.body),
+      req.bodyBytes.isEmpty
+          ? null
+          // a multipart upload is kept as text: the form fields and the file
+          // name can be found in it
+          : (req.headers['content-type'] ?? '').startsWith('multipart/')
+          ? latin1.decode(req.bodyBytes)
+          : jsonDecode(req.body),
     );
     calls.add(call);
     final handler = handlers['${req.method} ${req.url.path}'];

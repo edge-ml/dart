@@ -1,3 +1,18 @@
+## 1.2.0
+
+Audio and video recordings in datasets (needs an edge-ml server with media
+support; everything else works with older servers as before).
+
+- `datasets.uploadMediaFile` and `datasets.uploadMediaBytes` add an audio or
+  video recording to a dataset, placed on its timeline by `start`. The server
+  accepts MP4 (H.264/AAC) and WebM video, and MP3, WAV, OGG, FLAC and M4A
+  audio.
+- `Dataset.media` lists the recordings (`MediaSeries`: kind, name, start,
+  duration, size, resolution, codecs); `Dataset.start`/`end` include them.
+- `datasets.downloadMedia` fetches a recording.
+- `datasets.create` makes a dataset without time-series, for datasets that
+  only hold recordings.
+
 ## 1.1.0
 
 Units (needs an edge-ml server with unit support; plain names keep working

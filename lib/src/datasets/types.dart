@@ -135,6 +135,114 @@ class TimeSeriesInfo {
   final double? samplingRate;
 }
 
+/// Whether a recording is sound only or has a picture.
+enum MediaKind {
+  /// Sound only.
+  audio,
+
+  /// A picture, with or without sound.
+  video,
+}
+
+/// An audio or video recording of a dataset.
+///
+/// It lies on the dataset's timeline: [start] is the moment it begins, so it
+/// lines up with the time-series and the labels apply to it as well.
+class MediaSeries {
+  /// Creates a [MediaSeries].
+  const MediaSeries({
+    required this.id,
+    required this.kind,
+    required this.name,
+    required this.start,
+    required this.duration,
+    required this.mimeType,
+    required this.size,
+    this.isProcessing = false,
+    this.width,
+    this.height,
+    this.fps,
+    this.sampleRate,
+    this.channels,
+    this.videoCodec,
+    this.audioCodec,
+  });
+
+  /// Parses an entry of a dataset's `mediaSeries`.
+  factory MediaSeries.fromJson(Map<String, dynamic> json) {
+    final meta = (json['meta'] as Map?) ?? const {};
+    return MediaSeries(
+      id: '${json['_id']}',
+      kind: json['kind'] == 'video' ? MediaKind.video : MediaKind.audio,
+      name: json['name'] as String? ?? '',
+      start: (json['start'] as num).toInt(),
+      duration: Duration(milliseconds: (json['durationMs'] as num).toInt()),
+      mimeType: json['mimeType'] as String? ?? '',
+      size: (json['size'] as num?)?.toInt() ?? 0,
+      isProcessing: json['status'] == 'processing',
+      width: (meta['width'] as num?)?.toInt(),
+      height: (meta['height'] as num?)?.toInt(),
+      fps: (meta['fps'] as num?)?.toDouble(),
+      sampleRate: (meta['sampleRate'] as num?)?.toInt(),
+      channels: (meta['channels'] as num?)?.toInt(),
+      videoCodec: meta['videoCodec'] as String?,
+      audioCodec: meta['audioCodec'] as String?,
+    );
+  }
+
+  /// Server id of the recording.
+  final String id;
+
+  /// Audio or video.
+  final MediaKind kind;
+
+  /// Name, e.g. "front camera".
+  final String name;
+
+  /// The moment the recording begins on the dataset timeline, unix ms.
+  final int start;
+
+  /// Length of the recording.
+  final Duration duration;
+
+  /// The moment the recording ends on the dataset timeline, unix ms.
+  int get end => start + duration.inMilliseconds;
+
+  /// MIME type the server serves it with, e.g. "video/mp4".
+  final String mimeType;
+
+  /// Size of the file in bytes.
+  final int size;
+
+  /// `true` for a short while after the upload, while the server computes the
+  /// waveform the web app shows. The recording can be played regardless.
+  final bool isProcessing;
+
+  /// Picture width in pixels (video only).
+  final int? width;
+
+  /// Picture height in pixels (video only).
+  final int? height;
+
+  /// Frames per second (video only).
+  final double? fps;
+
+  /// Sample rate of the sound in Hz, `null` for a silent video.
+  final int? sampleRate;
+
+  /// Number of sound channels, `null` for a silent video.
+  final int? channels;
+
+  /// Codec of the picture, e.g. "h264" (video only).
+  final String? videoCodec;
+
+  /// Codec of the sound, e.g. "aac"; `null` for a silent video.
+  final String? audioCodec;
+
+  @override
+  String toString() => 'MediaSeries(${kind.name} $name, ${duration.inMilliseconds / 1000}s)';
+}
+
 /// A dataset of the project, without its sample values.
 class Dataset {
   /// Creates a [Dataset].
@@ -144,6 +252,7 @@ class Dataset {
     required this.timeSeries,
     required this.labels,
     this.metadata = const {},
+    this.media = const [],
   });
 
   /// Parses a dataset document, resolving label ids to names with the
@@ -173,6 +282,11 @@ class Dataset {
           TimeSeriesInfo.fromJson(ts),
       ],
       labels: labels,
+      // absent in datasets from before recordings existed
+      media: [
+        for (final m in (json['mediaSeries'] as List? ?? const []).cast<Map<String, dynamic>>())
+          MediaSeries.fromJson(m),
+      ],
     );
   }
 
@@ -191,20 +305,27 @@ class Dataset {
   /// All labels of the dataset, sorted by start time.
   final List<DatasetLabel> labels;
 
-  /// First timestamp over all time-series (unix ms), `null` if empty.
+  /// The audio and video recordings of the dataset.
+  final List<MediaSeries> media;
+
+  /// First timestamp over all time-series and recordings (unix ms), `null`
+  /// if empty.
   int? get start {
-    final starts = timeSeries.map((t) => t.start).whereType<int>();
+    final starts = [...timeSeries.map((t) => t.start).whereType<int>(), ...media.map((m) => m.start)];
     return starts.isEmpty ? null : starts.reduce((a, b) => a < b ? a : b);
   }
 
-  /// Last timestamp over all time-series (unix ms), `null` if empty.
+  /// Last timestamp over all time-series and recordings (unix ms), `null` if
+  /// empty.
   int? get end {
-    final ends = timeSeries.map((t) => t.end).whereType<int>();
+    final ends = [...timeSeries.map((t) => t.end).whereType<int>(), ...media.map((m) => m.end)];
     return ends.isEmpty ? null : ends.reduce((a, b) => a > b ? a : b);
   }
 
   @override
-  String toString() => 'Dataset($name, ${timeSeries.map((t) => t.name).join(', ')}, ${labels.length} labels)';
+  String toString() =>
+      'Dataset($name, ${timeSeries.map((t) => t.name).join(', ')}, ${labels.length} labels'
+      '${media.isEmpty ? '' : ', ${media.length} recordings'})';
 }
 
 /// Empty series are stored with start = 2^63-1 / end = -1 on the server.
