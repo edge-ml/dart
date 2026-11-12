@@ -1,3 +1,12 @@
+## 1.3.0
+
+- `datasets.addLabels` adds labels over time ranges, and a label for the
+  whole dataset, to an existing dataset. A dataset that only holds
+  recordings had no way to get labels before.
+- A label for the whole dataset covers the recordings too (needs an edge-ml
+  server that spans recordings; older servers refuse it for a dataset
+  without time-series).
+
 ## 1.2.0
 
 Audio and video recordings in datasets (needs an edge-ml server with media

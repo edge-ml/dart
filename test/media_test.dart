@@ -170,6 +170,39 @@ void main() {
     });
   });
 
+  test('addLabels labels a dataset without time-series', () async {
+    server.on('POST /ds/api/dataset/append/KEY/D9', null);
+    await edgeml.datasets.addLabels(
+      'D9',
+      [const DatasetLabel('topic', 'intro', start: 1000, end: 2000)],
+      wholeDatasetLabel: ('speaker', 'anna'),
+    );
+    expect(server.calls.single.body, {
+      'data': <Object>[],
+      'labels': [
+        {'labelingName': 'topic', 'labelName': 'intro', 'start': 1000, 'end': 2000},
+      ],
+      'labeling': {'labelingName': 'speaker', 'labelName': 'anna'},
+    });
+  });
+
+  test('addLabels checks the labels before sending anything', () async {
+    const intro = DatasetLabel('topic', 'intro', start: 1000, end: 2000);
+    expect(() => edgeml.datasets.addLabels('', [intro]), throwsArgumentError);
+    expect(
+      () => edgeml.datasets.addLabels('D9', [const DatasetLabel('topic', 'intro', start: 2000, end: 1000)]),
+      throwsArgumentError,
+    );
+    // ranges are inclusive: sharing one millisecond overlaps
+    expect(
+      () => edgeml.datasets.addLabels('D9', [intro, const DatasetLabel('topic', 'main', start: 2000, end: 3000)]),
+      throwsArgumentError,
+    );
+    // nothing to add, nothing sent
+    await edgeml.datasets.addLabels('D9', const []);
+    expect(server.calls, isEmpty);
+  });
+
   test('downloadMedia returns the file', () async {
     server.onBytes('GET /ds/api/dataset/media/KEY/D1/M2', 'sound'.codeUnits);
     expect(await edgeml.datasets.downloadMedia('D1', 'M2'), 'sound'.codeUnits);

@@ -20,7 +20,7 @@ listing, downloading and running models also work with the read key.
 
 ```yaml
 dependencies:
-  edge_ml_dart: ^1.2.0
+  edge_ml_dart: ^1.3.0
 ```
 
 Requirements: Flutter 3.38+, Android API 23+, iOS 13+, macOS 11+. On-device
@@ -183,9 +183,14 @@ print('${media.kind.name} ${media.duration} ${media.width}x${media.height}');
 // from memory (also works on the web)
 await edgeml.datasets.uploadMediaBytes(datasetId, bytes, fileName: 'voice.m4a');
 
-// a dataset that only holds recordings
+// a dataset that only holds recordings, and its labels
 final id = await edgeml.datasets.create('interview-1');
-await edgeml.datasets.uploadMediaFile(id, path);
+final clip = await edgeml.datasets.uploadMediaFile(id, path);
+await edgeml.datasets.addLabels(
+  id,
+  [DatasetLabel('topic', 'intro', start: clip.start, end: clip.start + 30000)],
+  wholeDatasetLabel: ('speaker', 'anna'), // optional: over everything the dataset holds
+);
 
 // recordings are listed with the dataset and can be downloaded
 final ds = await edgeml.datasets.get(id);
