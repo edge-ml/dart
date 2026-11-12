@@ -75,10 +75,33 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b
       - working-directory: example
         run: flutter pub get
-      # fail a hang after 25 min instead of using up the whole job
+      # Now and then the app is built but never comes up on the simulator, and
+      # flutter waits for it forever (the run of 2026-11-11 on main: nothing
+      # for 18 min after "Xcode build done", with the code that had passed on
+      # the pull request minutes before). A passing run takes about 7 min, so
+      # an attempt is stopped after 15, the simulator restarted and the test
+      # run once more; the second attempt reuses the build.
       - working-directory: example
-        timeout-minutes: 25
-        run: flutter test integration_test/device_test.dart -d "$UDID"
+        timeout-minutes: 35
+        run: |
+          attempt() {
+            flutter test integration_test/device_test.dart -d "$UDID" &
+            local test=$!
+            ( sleep 900; echo "::warning::The device test hung; stopping it"; kill "$test" 2>/dev/null ) &
+            local watchdog=$!
+            local status=0
+            wait "$test" || status=$?
+            kill "$watchdog" 2>/dev/null || true
+            return "$status"
+          }
+          if attempt; then exit 0; fi
+          echo "::warning::First attempt failed; restarting the simulator and trying once more"
+          pkill -f flutter_tools || true
+          pkill -f xcodebuild || true
+          xcrun simctl shutdown "$UDID" || true
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          attempt
 
   chrome:
     runs-on: ubuntu-latest
