@@ -10,11 +10,11 @@ class ModelInput {
 
   /// Parses an entry of the manifest's `inputs`.
   factory ModelInput.fromJson(Map<String, dynamic> json) => ModelInput(
-        name: json['name'] as String,
-        kind: json['kind'] as String,
-        shape: [for (final d in json['shape'] as List) (d as num).toInt()],
-        rate: ((json['sample_rate'] ?? json['sampling_rate']) as num?)?.toDouble(),
-      );
+    name: json['name'] as String,
+    kind: json['kind'] as String,
+    shape: [for (final d in json['shape'] as List) (d as num).toInt()],
+    rate: ((json['sample_rate'] ?? json['sampling_rate']) as num?)?.toDouble(),
+  );
 
   /// Tensor name, e.g. `raw_window` or `audio`.
   final String name;

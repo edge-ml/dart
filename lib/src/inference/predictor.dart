@@ -279,7 +279,9 @@ class Predictor {
         tensors.add((data: _sensorTensor(sensors), shape: [1, windowSize, timeSeries.length]));
       } else {
         final n = input.shape[1];
-        if (audio == null || audio.length != n) throw ArgumentError.value(audio?.length, 'audio', 'must have $n samples');
+        if (audio == null || audio.length != n) {
+          throw ArgumentError.value(audio?.length, 'audio', 'must have $n samples');
+        }
         tensors.add((data: Float32List.fromList(audio), shape: [1, n]));
       }
     }

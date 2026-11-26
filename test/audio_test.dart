@@ -119,7 +119,10 @@ void main() {
       test('predicts the same from 48 kHz microphone input', () async {
         final streams = (ref['streams'] as List).cast<Map<String, dynamic>>();
         // only windows with sound before them: the resampler lags ~2 ms
-        final withLead = [for (var k = 0; k < streams.length; k++) if ((streams[k]['lead_ms'] as num) > 0) k];
+        final withLead = [
+          for (var k = 0; k < streams.length; k++)
+            if ((streams[k]['lead_ms'] as num) > 0) k,
+        ];
         expect(withLead.length, greaterThanOrEqualTo(3));
         for (final k in withLead) {
           predictor.reset();
@@ -177,8 +180,9 @@ void main() {
   });
 
   group('Resampler', () {
-    Float32List tone(double freq, int rate, double seconds) =>
-        Float32List.fromList([for (var i = 0; i < (rate * seconds).round(); i++) math.sin(2 * math.pi * freq * i / rate)]);
+    Float32List tone(double freq, int rate, double seconds) => Float32List.fromList([
+      for (var i = 0; i < (rate * seconds).round(); i++) math.sin(2 * math.pi * freq * i / rate),
+    ]);
     double rms(List<double> xs) => math.sqrt(xs.fold(0.0, (a, x) => a + x * x) / xs.length);
 
     test('produces the same samples as the JavaScript library', () {
