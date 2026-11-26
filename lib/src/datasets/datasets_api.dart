@@ -89,12 +89,40 @@ class DatasetsApi {
   }
 
   /// Creates an empty dataset and returns its id, e.g. for a dataset that
-  /// only holds recordings ([uploadMediaFile], [uploadMediaBytes]). Needs the
-  /// write key.
+  /// only holds recordings ([uploadMediaFile], [uploadMediaBytes]), which
+  /// [addLabels] can label. Needs the write key.
   ///
   /// For sensor data use [collector] or [upload], which create the dataset
   /// themselves.
   Future<String> create(String name, {Map<String, String> metadata = const {}}) => _init(name, const [], metadata);
+
+  /// Adds [labels] over time ranges to the dataset [datasetId], and
+  /// [wholeDatasetLabel] over everything the dataset holds at that moment,
+  /// its time-series and its recordings. Needs the write key.
+  ///
+  /// This is how a dataset that only holds recordings gets its labels: add
+  /// the recordings first ([uploadMediaFile], [uploadMediaBytes]), then the
+  /// labels. Labelings and labels that do not exist yet are created.
+  ///
+  /// Throws [ArgumentError] for a label that ends before it starts or that
+  /// overlaps another of the same labeling in [labels]; the server refuses
+  /// labels that overlap ones the dataset already has.
+  Future<void> addLabels(
+    String datasetId,
+    List<DatasetLabel> labels, {
+    (String labeling, String label)? wholeDatasetLabel,
+  }) async {
+    if (datasetId.isEmpty) throw ArgumentError.value(datasetId, 'datasetId', 'must not be empty');
+    for (final (i, label) in labels.indexed) {
+      if (label.end < label.start) throw ArgumentError.value(label, 'labels', 'ends before it starts');
+      for (final other in labels.take(i)) {
+        if (other.labeling == label.labeling && other.start <= label.end && label.start <= other.end) {
+          throw ArgumentError.value(label, 'labels', 'overlaps $other; labels of one labeling must not overlap');
+        }
+      }
+    }
+    await _append(datasetId, const {}, labels: labels, wholeDatasetLabel: wholeDatasetLabel);
+  }
 
   /// Adds the audio or video file at [path] to the dataset [datasetId] and
   /// returns the stored recording. Needs the write key. Not available on the

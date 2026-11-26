@@ -21,6 +21,18 @@ abstract interface class LoadedModel {
   Future<void> dispose();
 }
 
+/// One float32 input tensor: its values and shape (with the batch dimension).
+typedef InputTensor = ({Float32List data, List<int> shape});
+
+/// A [LoadedModel] that also runs models with several inputs, e.g. sound and
+/// sensors (manifest schema 2). [ExecuTorchRuntime]'s models implement it; a
+/// runtime of your own needs it only for such models.
+abstract interface class MultiInputModel implements LoadedModel {
+  /// Runs the model on [inputs], in the order the model takes them, and
+  /// returns its first output, flattened.
+  Future<Float32List> runAll(List<InputTensor> inputs);
+}
+
 /// Runs ExecuTorch `.pte` programs with `executorch_flutter` (XNNPACK on
 /// Android, iOS, macOS, Linux and Windows; WebAssembly on the web).
 class ExecuTorchRuntime implements InferenceRuntime {
@@ -44,21 +56,25 @@ class ExecuTorchRuntime implements InferenceRuntime {
   }
 }
 
-class _ExecuTorchModel implements LoadedModel {
+class _ExecuTorchModel implements MultiInputModel {
   _ExecuTorchModel(this._model);
 
   final ExecuTorchModel _model;
 
   @override
-  Future<Float32List> run(Float32List input, List<int> shape) async {
+  Future<Float32List> run(Float32List input, List<int> shape) => runAll([(data: input, shape: shape)]);
+
+  @override
+  Future<Float32List> runAll(List<InputTensor> inputs) async {
     final List<TensorData> outputs;
     try {
       outputs = await _model.forward([
-        TensorData(
-          shape: shape,
-          dataType: TensorType.float32,
-          data: input.buffer.asUint8List(input.offsetInBytes, input.lengthInBytes),
-        ),
+        for (final input in inputs)
+          TensorData(
+            shape: input.shape,
+            dataType: TensorType.float32,
+            data: input.data.buffer.asUint8List(input.data.offsetInBytes, input.data.lengthInBytes),
+          ),
       ]);
     } on ExecuTorchException catch (e) {
       throw EdgeMLException('Inference failed: ${e.message}');

@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "format": "executorch",
+  "model_name": "audio_only",
+  "model_id": "222222222222222222222222",
+  "executorch": {
+    "version": "1.0.0",
+    "backend": "xnnpack"
+  },
+  "window": {
+    "duration_ms": 500.0,
+    "stride_ms": 500.0
+  },
+  "inputs": [
+    {
+      "name": "audio",
+      "kind": "audio",
+      "shape": [
+        1,
+        4000
+      ],
+      "dtype": "float32",
+      "sample_rate": 8000,
+      "channels": 1,
+      "range": [
+        -1.0,
+        1.0
+      ],
+      "recording": "mic"
+    }
+  ],
+  "preprocessing": {
+    "baked": [
+      "Log-mel spectrogram & sensors",
+      "Per-channel ZNormalizer"
+    ],
+    "on_device": [
+      "windowing",
+      "resampling"
+    ],
+    "spectrogram": {
+      "sample_rate": 8000,
+      "n_fft": 200,
+      "hop": 80,
+      "n_mels": 40,
+      "window": "hann",
+      "mel_scale": "htk",
+      "log_offset": 1e-06
+    }
+  },
+  "output": {
+    "name": "scores",
+    "type": "logits",
+    "shape": [
+      1,
+      2
+    ],
+    "labels": [
+      "still",
+      "shaking"
+    ]
+  },
+  "classification_frequency_hint_hz": 2.0
+}
