@@ -12,10 +12,11 @@ export 'src/datasets/recording.dart' show DatasetRecording;
 export 'src/datasets/types.dart'
     show Dataset, DatasetLabel, LabelClass, Labeling, MediaKind, MediaSeries, TimeSeriesInfo;
 export 'src/errors.dart';
-export 'src/inference/manifest.dart' show ModelManifest;
+export 'src/inference/manifest.dart' show ModelInput, ModelManifest;
 export 'src/inference/model_cache.dart' show MemoryModelCache, ModelCache, ModelFiles;
 export 'src/inference/predictor.dart' show Prediction, Predictor;
-export 'src/inference/runtime.dart' show ExecuTorchRuntime, InferenceRuntime, LoadedModel;
+export 'src/inference/resampler.dart' show Resampler;
+export 'src/inference/runtime.dart' show ExecuTorchRuntime, InferenceRuntime, InputTensor, LoadedModel, MultiInputModel;
 export 'src/models/models_api.dart' show ModelsApi;
 export 'src/models/types.dart' show ModelInfo, Preset, Presets, StepOverride, TrainStatus, TrainingStarted;
 export 'src/units.dart' show CatalogUnit, InputUnit, UnitCatalog, UnitConversion, UnitQuantity, resolveUnitConversions;

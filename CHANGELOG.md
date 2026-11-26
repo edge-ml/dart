@@ -1,3 +1,19 @@
+## 1.4.0
+
+Models that take sound (needs an edge-ml server with audio training).
+
+- `Presets.audioCnn` (sound only) and `Presets.mixedCnn` (sound and sensors),
+  and `audio` in `models.train` / `startTraining` to name the recording.
+  `ModelInfo.audioInputs` and `Preset.inputs` say what a model takes.
+- `Predictor` runs manifest schema 2: `addAudio`, `addPcm16`,
+  `addPcm16Bytes` at any sample rate (mixed to mono, resampled with
+  anti-aliasing), `predictInputs`, `takesSound`, `audioSampleRate`,
+  `windowMs`. Sensors of these models are interpolated onto the model's
+  time grid, as in training. Sensor models work as before.
+- `ModelManifest.inputs` / `ModelInput`, `Resampler`, and
+  `MultiInputModel` for runtimes that run models with several inputs.
+- Earlier versions refuse models that take sound (unsupported schema).
+
 ## 1.3.0
 
 - `datasets.addLabels` adds labels over time ranges, and a label for the

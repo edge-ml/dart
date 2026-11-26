@@ -18,12 +18,27 @@ abstract final class Presets {
 
   /// 3 hidden layers on simple statistical features.
   static const largeDense = 'large_dense';
+
+  /// Sound only: 1 s windows of a recording's sound as a log-mel
+  /// spectrogram, into a CNN. Name the recording with `audio` if the datasets
+  /// have more than one.
+  static const audioCnn = 'audio_cnn';
+
+  /// Sound and the time-series all datasets share: a CNN branch for each,
+  /// combined.
+  static const mixedCnn = 'mixed_cnn';
 }
 
 /// A training preset offered by the server.
 class Preset {
   /// Creates a [Preset].
-  const Preset({required this.id, required this.name, required this.description, this.pipeline = const {}});
+  const Preset({
+    required this.id,
+    required this.name,
+    required this.description,
+    this.pipeline = const {},
+    this.inputs = 'sensors',
+  });
 
   /// Parses a preset from the server.
   factory Preset.fromJson(Map<String, dynamic> json) => Preset(
@@ -31,6 +46,7 @@ class Preset {
     name: json['name'] as String,
     description: json['description'] as String? ?? '',
     pipeline: (json['pipeline'] as Map? ?? const {}).cast<String, dynamic>(),
+    inputs: json['inputs'] as String? ?? 'sensors',
   );
 
   /// Id to pass to [ModelsApi.train], e.g. `small_cnn`.
@@ -44,6 +60,10 @@ class Preset {
 
   /// The pipeline steps the preset selects (for display).
   final Map<String, dynamic> pipeline;
+
+  /// What the trained model takes: `sensors`, `audio` (a recording's sound)
+  /// or `mixed` (both).
+  final String inputs;
 
   @override
   String toString() => 'Preset($id)';
@@ -100,6 +120,7 @@ class ModelInfo {
     this.timeSeries = const [],
     this.inputUnits = const [],
     this.samplingRate,
+    this.audioInputs = const [],
     this.metrics,
   });
 
@@ -117,6 +138,10 @@ class ModelInfo {
     timeSeries: (json['timeSeries'] as List? ?? const []).cast<String>(),
     inputUnits: _inputUnits(json),
     samplingRate: (json['samplingRate'] as num?)?.toDouble(),
+    audioInputs: [
+      for (final a in (json['audioInputs'] as List? ?? const []).cast<Map<String, dynamic>>())
+        (name: a['name'] as String, sampleRate: (a['sampleRate'] as num).toInt()),
+    ],
     metrics: (json['metrics'] as Map?)?.cast<String, dynamic>(),
   );
 
@@ -157,6 +182,10 @@ class ModelInfo {
 
   /// Sampling rate of the training data in Hz.
   final double? samplingRate;
+
+  /// The sound the model takes: the recording it was trained on and the
+  /// sample rate it expects. Empty for sensor models.
+  final List<({String name, int sampleRate})> audioInputs;
 
   /// Evaluation metrics (accuracy, f1, confusion matrix, ...), once trained.
   final Map<String, dynamic>? metrics;

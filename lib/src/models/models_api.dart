@@ -42,6 +42,9 @@ class ModelsApi {
   /// - [datasets]: names or ids; default: every dataset with that labeling.
   /// - [timeSeries]: sensor names; default: those all datasets share.
   /// - [disabledLabels]: labels (names or ids) to leave out.
+  /// - [audio]: name of the recording whose sound the model learns from, with
+  ///   [Presets.audioCnn] or [Presets.mixedCnn]; by default the one recording
+  ///   every dataset has.
   /// - [steps]: per-step overrides on top of the preset, see [StepOverride].
   Future<TrainingStarted> startTraining({
     required String name,
@@ -51,6 +54,7 @@ class ModelsApi {
     List<String>? timeSeries,
     List<String> disabledLabels = const [],
     bool useZeroClass = false,
+    String? audio,
     Map<String, StepOverride> steps = const {},
   }) async {
     final res =
@@ -62,6 +66,7 @@ class ModelsApi {
               'timeSeries': ?timeSeries,
               'disabledLabels': disabledLabels,
               'useZeroClass': useZeroClass,
+              'audio': ?audio,
               'pipeline': {for (final e in steps.entries) e.key: e.value.toJson()},
             })
             as Map);
@@ -113,6 +118,7 @@ class ModelsApi {
     List<String>? timeSeries,
     List<String> disabledLabels = const [],
     bool useZeroClass = false,
+    String? audio,
     Map<String, StepOverride> steps = const {},
     void Function(ModelInfo model)? onProgress,
     void Function(String warning)? onWarning,
@@ -127,6 +133,7 @@ class ModelsApi {
       timeSeries: timeSeries,
       disabledLabels: disabledLabels,
       useZeroClass: useZeroClass,
+      audio: audio,
       steps: steps,
     );
     started.warnings.forEach(onWarning ?? (_) {});

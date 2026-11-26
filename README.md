@@ -216,6 +216,8 @@ that runs on the device:
 | `Presets.largeCnn` | 1D CNN, 3 blocks, 32 filters: most accurate |
 | `Presets.smallDense` | dense network, 1 layer, on statistical features |
 | `Presets.largeDense` | dense network, 3 layers, on statistical features |
+| `Presets.audioCnn` | sound only: 1 s windows of a recording's sound as a log-mel spectrogram, CNN |
+| `Presets.mixedCnn` | sound and the shared time-series: a CNN branch for each, combined |
 
 ```dart
 final presets = await edgeml.models.presets(); // id, name, description
@@ -236,6 +238,25 @@ final model = await edgeml.models.train(
 );
 print(model.metrics);
 ```
+
+### Training on sound
+
+Datasets can hold audio and video recordings (see [Audio and video](#audio-and-video)).
+The sound presets train on a recording's sound, alone or with the sensors:
+
+```dart
+final model = await edgeml.models.train(
+  name: 'kitchen',
+  labeling: 'activity',
+  preset: Presets.mixedCnn,
+  audio: 'mic', // the recording's name; optional when the datasets share exactly one
+);
+print(model.audioInputs); // [(name: mic, sampleRate: 16000)]
+```
+
+Without `datasets`, every dataset with the labeling and the recording is
+used. Video files count when they have a sound track. Sound is mixed to mono
+at 16 kHz.
 
 `train` waits until the model is trained; `startTraining` returns right away
 and `watch(modelId)` streams the model's state. `list()` and `get(id)` return
@@ -280,6 +301,38 @@ them with:
 ```dart
 final predictor = await Predictor.fromBytes(pteBytes, manifestJson);
 ```
+
+### Models that take sound
+
+Models trained on sound take it with `addAudio` (samples in [-1, 1]) or
+`addPcm16Bytes` (16-bit little-endian PCM), at any sample rate: it is mixed
+to mono and converted to the model's rate. Sensors go in as before, and
+`predict()` classifies the latest window of sound and sensors, aligned in
+time.
+
+```dart
+// with the record package (https://pub.dev/packages/record)
+final recorder = AudioRecorder();
+final stream = await recorder.startStream(
+  const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
+);
+stream.listen((bytes) => predictor.addPcm16Bytes(bytes, sampleRate: 16000));
+
+print(predictor.takesSound);      // true
+print(predictor.audioSampleRate); // 16000
+print(predictor.windowMs);        // 1000
+
+Timer.periodic(const Duration(milliseconds: 500), (_) async {
+  if (predictor.isReady) print((await predictor.predict()).label);
+});
+
+// or classify your own window: sensor rows and one window of samples
+await predictor.predictInputs(sensors: rows, audio: samples);
+```
+
+`Resampler` is the sample-rate converter the predictor uses, if you need it
+yourself. A runtime of your own (`InferenceRuntime`) needs to return a
+`MultiInputModel` to run models that take sound.
 
 ### Sensor units
 
